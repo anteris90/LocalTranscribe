@@ -52,6 +52,9 @@ jobs:
       - name: Build frontend
         run: npm run build:frontend
 
+      - name: Build Electron (TypeScript)
+        run: npm run build:electron
+
       - name: Package Electron app (Windows)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -100,6 +103,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Work around Rollup optional dependency bug
+        run: npm install --no-save @rollup/rollup-darwin-arm64@4.59.0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -114,6 +120,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build:frontend
+
+      - name: Build Electron (TypeScript)
+        run: npm run build:electron
 
       - name: Package Electron app (macOS)
         env:

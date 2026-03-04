@@ -150,6 +150,15 @@ High-level workflow idea:
 
 If you want this automated, add a workflow under `.github/workflows/release.yml`.
 
+This repo includes a workflow at:
+- [.github/workflows/release.yml](.github/workflows/release.yml)
+
+Behavior:
+- Triggers on tags like `vX.Y.Z`
+- Ensures the GitHub Release exists
+- Builds Windows NSIS installer + `backend-win-x64.exe` and uploads them
+- Builds macOS arm64 DMG and uploads it
+
 ## Troubleshooting
 
 ### Hungarian / non-ASCII transcript crashes on Windows

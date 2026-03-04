@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create_release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "Release already exists for $TAG"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --repo "$REPO"
+            echo "Created release $TAG"
+          fi
+
+  build_windows:
+    name: Build Windows (installer + backend)
+    needs: create_release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Package Electron app (Windows)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm --workspace electron run dist
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build backend onefile (Windows)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install pyinstaller
+          python -m PyInstaller --onefile --name backend --distpath backend/dist/windows --workpath backend/build/windows --specpath backend/build/windows --paths backend backend/app/main.py
+          if (!(Test-Path "backend/dist/windows/backend.exe")) { throw "Expected backend artifact not found" }
+
+      - name: Upload release assets (Windows)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installer = "dist/packages/LocalTranscribe-$version-win-x64.exe"
+          if (!(Test-Path $installer)) { throw "Installer not found: $installer" }
+
+          gh release upload $env:TAG "$installer" --repo $env:REPO --clobber
+          gh release upload $env:TAG "backend/dist/windows/backend.exe#backend-win-x64.exe" --repo $env:REPO --clobber
+
+  build_macos_arm64:
+    name: Build macOS (arm64 dmg)
+    needs: create_release
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build backend onefile (macOS arm64)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install pyinstaller
+          python -m PyInstaller --onefile --name backend --distpath backend/dist/macos-arm64 --workpath backend/build/macos-arm64 --specpath backend/build/macos-arm64 --paths backend backend/app/main.py
+          test -f backend/dist/macos-arm64/backend
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Package Electron app (macOS)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm --workspace electron run dist
+
+      - name: Upload release assets (macOS)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          dmg="dist/packages/LocalTranscribe-${version}-mac-arm64.dmg"
+          test -f "$dmg"
+
+          gh release upload "$TAG" "$dmg" --repo "$REPO" --clobber

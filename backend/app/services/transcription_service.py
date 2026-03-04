@@ -113,6 +113,7 @@ class TranscriptionService:
                         "device": attempt.device,
                         "compute_type": attempt.compute_type,
                         "message": str(exc),
+                        "type": exc.__class__.__name__,
                     }
                 )
                 executed_attempts.append(AttemptResult(device=attempt.device, compute_type=attempt.compute_type))
@@ -147,10 +148,17 @@ class TranscriptionService:
 
         media_duration = self._probe_duration_seconds(file_path)
 
+        requested = language.strip().lower()
+        language_param: str | None
+        if requested in {"", "auto"}:
+            language_param = None
+        else:
+            language_param = language
+
         try:
-            segments_iter, _info = model.transcribe(
+            segments_iter, info = model.transcribe(
                 str(file_path),
-                language=language,
+                language=language_param,
                 task="transcribe",
             )
         except Exception as exc:
@@ -160,36 +168,58 @@ class TranscriptionService:
                 data={"error": str(exc)},
             ) from exc
 
+        detected_language = getattr(info, "language", None)
+        language_probability = getattr(info, "language_probability", None)
+        if isinstance(detected_language, str) and detected_language.strip():
+            payload: dict[str, Any] = {"language": detected_language}
+            if isinstance(language_probability, (float, int)):
+                payload["probability"] = float(language_probability)
+            emit_event("transcription.language_detected", payload)
+        else:
+            detected_language = None
+            language_probability = None
+
         segments: list[TranscriptSegment] = []
         full_text_parts: list[str] = []
         latest_end = 0.0
         emitted_count = 0
 
-        for raw_segment in segments_iter:
-            text = str(getattr(raw_segment, "text", "")).strip()
-            start = float(getattr(raw_segment, "start", 0.0))
-            end = float(getattr(raw_segment, "end", start))
+        try:
+            for raw_segment in segments_iter:
+                text = str(getattr(raw_segment, "text", "")).strip()
+                start = float(getattr(raw_segment, "start", 0.0))
+                end = float(getattr(raw_segment, "end", start))
 
-            segment = TranscriptSegment(start=start, end=end, text=text)
-            segments.append(segment)
-            if text:
-                full_text_parts.append(text)
+                segment = TranscriptSegment(start=start, end=end, text=text)
+                segments.append(segment)
+                if text:
+                    full_text_parts.append(text)
 
-            latest_end = max(latest_end, end)
-            emitted_count += 1
+                latest_end = max(latest_end, end)
+                emitted_count += 1
 
-            percent = self._calculate_percent(media_duration, latest_end, emitted_count)
-            emit_event(
-                "transcription.progress",
-                {
-                    "percent": percent,
-                    "stage": "transcribing",
-                    "partial_text": text,
-                    "segment": segment.to_dict(),
-                    "device": effective_device,
-                    "compute_type": effective_compute_type,
+                percent = self._calculate_percent(media_duration, latest_end, emitted_count)
+                emit_event(
+                    "transcription.progress",
+                    {
+                        "percent": percent,
+                        "stage": "transcribing",
+                        "partial_text": text,
+                        "segment": segment.to_dict(),
+                        "device": effective_device,
+                        "compute_type": effective_compute_type,
+                    },
+                )
+        except Exception as exc:
+            raise BackendError(
+                code=2107,
+                message="Model transcription iteration failed",
+                data={
+                    "error": str(exc),
+                    "type": exc.__class__.__name__,
+                    "detected_language": detected_language,
                 },
-            )
+            ) from exc
 
         emit_event(
             "transcription.progress",
@@ -208,18 +238,19 @@ class TranscriptionService:
             effective_device=effective_device,
             effective_compute_type=effective_compute_type,
             attempts=[*prior_attempts, AttemptResult(device=effective_device, compute_type=effective_compute_type)],
+            detected_language=detected_language,
+            language_probability=float(language_probability)
+            if isinstance(language_probability, (float, int))
+            else None,
         )
 
     def _validate_request(self, request: TranscriptionRequest) -> None:
         if not request.file_path.strip():
             raise BackendError(code=2104, message="file_path is required", data=None)
 
-        if not request.language.strip():
-            raise BackendError(
-                code=2105,
-                message="language is required (auto-detection disabled)",
-                data={"field": "language"},
-            )
+        # language can be a specific ISO-639-1 code (e.g. "en") or "auto"/"" to enable model detection
+        if request.language is None:  # defensive; request.language is declared as str
+            raise BackendError(code=2105, message="language is required", data={"field": "language"})
 
         requested = request.requested_device.strip().lower()
         if requested not in {"auto", "cpu", "gpu"}:

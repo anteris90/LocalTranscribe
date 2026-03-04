@@ -90,5 +90,7 @@ class JsonRpcProtocol:
 
     def _write(self, payload: dict[str, Any]) -> None:
         with self._write_lock:
-            self._output.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            # Always write ASCII-safe JSON to avoid Windows stdout encoding failures
+            # when transcript text contains non-ASCII characters.
+            self._output.write(json.dumps(payload, ensure_ascii=True) + "\n")
             self._output.flush()

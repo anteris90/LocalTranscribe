@@ -31,6 +31,8 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
   const devIconPath = path.resolve(runtimeAppRoot, "build", "icon.png");
   const icon = !app.isPackaged && fs.existsSync(devIconPath) ? devIconPath : undefined;
 
+  const isDev = !app.isPackaged;
+
   const window = new BrowserWindow({
     width: 1200,
     height: 820,
@@ -39,6 +41,7 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       preload: preloadPath,
+      devTools: isDev,
     },
   });
 
@@ -50,6 +53,16 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
       ? path.resolve(process.resourcesPath, "frontend", "dist", "index.html")
       : path.resolve(runtimeAppRoot, "frontend", "dist", "index.html");
     void window.loadFile(rendererHtml);
+  }
+
+  if (isDev && process.env.LOCALTRANSCRIBE_DEVTOOLS !== "0") {
+    window.webContents.once("did-finish-load", () => {
+      try {
+        window.webContents.openDevTools({ mode: "detach" });
+      } catch {
+        // ignore
+      }
+    });
   }
 
   return window;
@@ -312,6 +325,14 @@ async function bootstrapMain(): Promise<void> {
   // Build a simple application menu with an Edit menu containing a Color Picker
   try {
     const template: MenuItemConstructorOptions[] = [
+      ...(!app.isPackaged
+        ? ([
+            {
+              label: "View",
+              submenu: [{ role: "reload" }, { role: "forceReload" }, { role: "toggleDevTools" }],
+            },
+          ] as MenuItemConstructorOptions[])
+        : []),
       {
         label: "Edit",
         submenu: [

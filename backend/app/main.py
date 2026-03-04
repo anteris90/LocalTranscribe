@@ -21,7 +21,7 @@ def _build_ping_result(context: RuntimeContext) -> dict[str, Any]:
 def _parse_transcription_request(params: dict[str, Any]) -> TranscriptionRequest:
     file_path = params.get("file_path")
     model_name = params.get("model")
-    language = params.get("language")
+    language = params.get("language", "auto")
     requested_device = params.get("device", "auto")
     allow_model_download = params.get("allow_model_download", False)
     allow_ffmpeg_download = params.get("allow_ffmpeg_download", False)

@@ -14,7 +14,8 @@
     "typecheck": "npm --workspace frontend run typecheck && npm --workspace electron run typecheck",
     "build:backend:onefile": "powershell -ExecutionPolicy Bypass -File ./scripts/build-backend-onefile.ps1",
     "release:upload-backend": "powershell -ExecutionPolicy Bypass -File ./scripts/upload-backend-release.ps1 -BuildIfMissing",
-    "test:thin-local": "powershell -ExecutionPolicy Bypass -File ./scripts/test-thin-installer-local.ps1 -BuildBackendIfMissing -ResetRuntime",
+    "test:thin-local": "powershell -ExecutionPolicy Bypass -File ./scripts/test-thin-installer-local.ps1 -BuildBackendIfMissing",
+    "test:thin-local:reset": "powershell -ExecutionPolicy Bypass -File ./scripts/test-thin-installer-local.ps1 -BuildBackendIfMissing -ResetRuntime",
     "test:thin-local:unix": "bash ./scripts/test-thin-installer-local.sh",
     "fix:unix-exec": "bash ./scripts/fix-unix-exec.sh"
   }

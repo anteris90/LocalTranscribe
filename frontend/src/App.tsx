@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEventHandler } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "react";
 
 import {
   checkResourceUpdates,
@@ -43,6 +43,7 @@ export function App() {
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [progressStage, setProgressStage] = useState<string>("idle");
   const [transcriptText, setTranscriptText] = useState<string>("");
+  const [logsText, setLogsText] = useState<string>("");
   const [transcriptSegments, setTranscriptSegments] = useState<ExportSegment[]>([]);
   const [isDownloadingResources, setIsDownloadingResources] = useState<boolean>(false);
   const [effectiveDevice, setEffectiveDevice] = useState<string | null>(null);
@@ -54,6 +55,8 @@ export function App() {
   const [infoMessage, setInfoMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [downgradeMessage, setDowngradeMessage] = useState<string>("");
+  const lastBootstrapLogBucketRef = useRef<number>(-1);
+  const lastDownloadLogBucketRef = useRef<number>(-1);
 
   const isJobActive = jobStatus === "queued" || jobStatus === "running";
   const hasTranscript = jobStatus === "completed" && transcriptText.trim().length > 0;
@@ -64,6 +67,14 @@ export function App() {
     }
     return isJobActive;
   }, [selectedFilePath, isJobActive]);
+
+  const appendLog = (line: string) => {
+    const text = line.trim();
+    if (text.length === 0) {
+      return;
+    }
+    setLogsText((prev) => (prev.trim().length === 0 ? text : `${prev}\n${text}`));
+  };
 
   useEffect(() => {
     void getJobStatus()
@@ -82,6 +93,9 @@ export function App() {
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : "Unable to query backend";
+        if (message.includes("Backend bridge unavailable")) {
+          return;
+        }
         if (message.includes("Backend is not running")) {
           setInfoMessage("Initializing backend runtime...");
           return;
@@ -112,12 +126,19 @@ export function App() {
           setIsDownloadingResources(true);
           setJobStatus("queued");
           setProgressStage(stageLabel);
-          if (typeof event.percent === "number") {
-            setProgressPercent(Math.max(0, Math.min(100, Math.floor(event.percent))));
+          if (event.status === "started") {
+            lastDownloadLogBucketRef.current = -1;
           }
-          if (message.length > 0) {
-            setInfoMessage(message);
-            setTranscriptText((prev) => (prev.trim().length === 0 ? `[download] ${message}` : `${prev}\n[download] ${message}`));
+          if (typeof event.percent === "number") {
+            const percent = Math.max(0, Math.min(100, Math.floor(event.percent)));
+            setProgressPercent(percent);
+            const bucket = Math.floor(percent / 10) * 10;
+            if (bucket > lastDownloadLogBucketRef.current) {
+              lastDownloadLogBucketRef.current = bucket;
+              if (message.length > 0) {
+                appendLog(`[download] ${message}`);
+              }
+            }
           }
           return;
         }
@@ -130,8 +151,7 @@ export function App() {
           setProgressPercent(100);
           setProgressStage("completed");
           if (message.length > 0) {
-            setInfoMessage(message);
-            setTranscriptText((prev) => (prev.trim().length === 0 ? `[download] ${message}` : `${prev}\n[download] ${message}`));
+            appendLog(`[download] ${message}`);
           }
           return;
         }
@@ -143,8 +163,7 @@ export function App() {
           }
           setProgressStage("failed");
           if (message.length > 0) {
-            setInfoMessage(message);
-            setTranscriptText((prev) => (prev.trim().length === 0 ? `[download] ${message}` : `${prev}\n[download] ${message}`));
+            appendLog(`[download] ${message}`);
           }
           return;
         }
@@ -257,13 +276,13 @@ export function App() {
       }
 
       if (eventType === "backend_stderr") {
+        if (isDownloadingResources) {
+          return;
+        }
         const message = typeof payload.message === "string" ? payload.message.trim() : "";
         if (message.length > 0) {
           const cleaned = message.replace(/\s+/g, " ");
-          setInfoMessage(cleaned);
-          setTranscriptText((prev) =>
-            prev.trim().length === 0 ? `[backend] ${cleaned}` : `${prev}\n[backend] ${cleaned}`
-          );
+          appendLog(`[backend] ${cleaned}`);
         }
         return;
       }
@@ -295,19 +314,19 @@ export function App() {
         const message = typeof payload.message === "string" ? payload.message : "Preparing runtime...";
         setProgressStage(stage);
         if (typeof payload.percent === "number") {
-          setProgressPercent(Math.max(0, Math.min(100, Math.floor(payload.percent))));
+          const percent = Math.max(0, Math.min(100, Math.floor(payload.percent)));
+          setProgressPercent(percent);
+          const bucket = Math.floor(percent / 10) * 10;
+          if (bucket > lastBootstrapLogBucketRef.current) {
+            lastBootstrapLogBucketRef.current = bucket;
+            appendLog(`[bootstrap] ${message}`);
+          }
         }
-        setInfoMessage(message);
-        setTranscriptText((prev) =>
-          prev.trim().length === 0 ? `[bootstrap] ${message}` : `${prev}\n[bootstrap] ${message}`
-        );
       } else if (status === "bootstrapping_failed") {
         setIsDownloadingResources(false);
         const message = typeof payload.message === "string" ? payload.message : "Backend bootstrap failed";
         setErrorMessage(message);
-        setTranscriptText((prev) =>
-          prev.trim().length === 0 ? `[bootstrap] ${message}` : `${prev}\n[bootstrap] ${message}`
-        );
+        appendLog(`[bootstrap] ${message}`);
       }
     });
 
@@ -374,11 +393,10 @@ export function App() {
             );
             if (approveModelDownload) {
               allowModelDownload = true;
-              setInfoMessage(`Downloading model '${selectedModel}'...`);
               setIsDownloadingResources(true);
               setProgressStage("downloading");
               setProgressPercent(1);
-              setTranscriptText(`[download] Downloading model '${selectedModel}'...`);
+              appendLog(`[download] Downloading model '${selectedModel}'...`);
               continue;
             }
           }
@@ -390,11 +408,10 @@ export function App() {
             );
             if (approveFfmpegDownload) {
               allowFfmpegDownload = true;
-              setInfoMessage("Downloading ffmpeg...");
               setIsDownloadingResources(true);
               setProgressStage("downloading");
               setProgressPercent(1);
-              setTranscriptText((prev) => (prev.trim().length === 0 ? "[download] Downloading ffmpeg..." : `${prev}\n[download] Downloading ffmpeg...`));
+              appendLog("[download] Downloading ffmpeg...");
               continue;
             }
           }
@@ -502,7 +519,7 @@ export function App() {
       setModelUpdateAvailable(Boolean(model?.update_available));
       setFfmpegUpdateAvailable(Boolean(ffmpeg?.update_available));
       setInfoMessage(message);
-      setTranscriptText((prev) => (prev.trim().length === 0 ? `[updates] ${message}` : `${prev}\n[updates] ${message}`));
+      appendLog(`[updates] ${message}`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Update check failed";
       if (message.includes("Method not found")) {
@@ -539,11 +556,7 @@ export function App() {
     setProgressStage("downloading");
     setErrorMessage("");
     setInfoMessage(`Updating ${targets.join(" and ")}...`);
-    setTranscriptText((prev) =>
-      prev.trim().length === 0
-        ? `[updates] Updating ${targets.join(" and ")}...`
-        : `${prev}\n[updates] Updating ${targets.join(" and ")}...`
-    );
+    appendLog(`[updates] Updating ${targets.join(" and ")}...`);
 
     try {
       await updateResources({
@@ -655,7 +668,7 @@ export function App() {
 
       <div style={{ marginTop: "14px" }}>
         <label htmlFor="transcriptText" style={{ display: "block", marginBottom: "4px" }}>
-          Transcript / Download Log
+          Transcript
         </label>
         <textarea
           id="transcriptText"
@@ -669,6 +682,29 @@ export function App() {
             resize: "vertical",
             background: "#0b1220",
             color: "#e5e7eb",
+            border: "1px solid #374151",
+            borderRadius: "6px",
+            padding: "10px",
+          }}
+        />
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <label htmlFor="logsText" style={{ display: "block", marginBottom: "4px" }}>
+          Logs
+        </label>
+        <textarea
+          id="logsText"
+          value={logsText}
+          readOnly
+          style={{
+            width: "100%",
+            minHeight: "180px",
+            maxHeight: "260px",
+            overflowY: "auto",
+            resize: "vertical",
+            background: "#0b1220",
+            color: "#9ca3af",
             border: "1px solid #374151",
             borderRadius: "6px",
             padding: "10px",

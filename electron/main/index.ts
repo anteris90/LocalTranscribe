@@ -53,9 +53,13 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
 
 function registerIpcHandlers(): void {
   ipcMain.handle("backend:request", async (_event, payload: { method: string; params?: Record<string, unknown> }) => {
+    if (!payload || typeof payload.method !== "string" || payload.method.length === 0) {
+      throw new Error("Invalid backend request payload");
+    }
+
     // If the renderer calls very early, the bridge may not be constructed yet.
     // Wait a short period for bootstrap to finish to avoid a spurious error.
-    const waitForBridge = async (timeoutMs = 5000) => {
+    const waitForBridge = async (timeoutMs = 120000) => {
       const start = Date.now();
       while (!backendBridge) {
         if (Date.now() - start > timeoutMs) {
@@ -66,13 +70,12 @@ function registerIpcHandlers(): void {
       return true;
     };
 
-    const available = await waitForBridge(5000);
+    const available = await waitForBridge(120000);
     if (!available || !backendBridge) {
+      if (payload.method === "get_job_status") {
+        return { job: null };
+      }
       throw new Error("Backend bridge unavailable");
-    }
-
-    if (!payload || typeof payload.method !== "string" || payload.method.length === 0) {
-      throw new Error("Invalid backend request payload");
     }
 
     return await backendBridge.request(payload.method, payload.params ?? {});

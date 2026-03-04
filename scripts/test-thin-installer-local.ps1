@@ -30,13 +30,17 @@ function Test-FileLocked {
 }
 
 function Get-LatestValidFallbackExecutable {
+  param(
+    [datetime]$NotOlderThan = [datetime]::MinValue
+  )
+
   $fallbackRoots = Get-ChildItem -Path "dist" -Directory -Filter "packages-thin-local-*" -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending
 
   foreach ($root in $fallbackRoots) {
     $candidateExe = Join-Path $root.FullName "win-unpacked\LocalTranscribe.exe"
     $candidateAsar = Join-Path $root.FullName "win-unpacked\resources\app.asar"
-    if ((Test-Path $candidateExe) -and (Test-Path $candidateAsar) -and ((Get-Item $candidateAsar).Length -gt 1024)) {
+    if ((Test-Path $candidateExe) -and (Test-Path $candidateAsar) -and ((Get-Item $candidateAsar).Length -gt 1024) -and ((Get-Item $candidateAsar).LastWriteTime -ge $NotOlderThan)) {
       return $candidateExe
     }
   }
@@ -81,7 +85,15 @@ function Ensure-ValidAppPackage {
     return $ExecutablePath
   }
 
-  $latestFallbackExe = Get-LatestValidFallbackExecutable
+  $newestSourceWrite = (
+    Get-Item @(
+      "frontend/src/App.tsx",
+      "electron/main/index.ts",
+      "electron/main/backendBridge.ts"
+    ) | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  ).LastWriteTime
+
+  $latestFallbackExe = Get-LatestValidFallbackExecutable -NotOlderThan $newestSourceWrite
   if ($latestFallbackExe) {
     Write-Host "Using existing fallback app package: $latestFallbackExe"
     return $latestFallbackExe
@@ -178,10 +190,7 @@ if ($ResetRuntime.IsPresent -and (Test-Path $runtimeRoot)) {
   Write-Host "Reset runtime cache: $runtimeRoot"
 }
 
-$tempDir = Join-Path $env:TEMP "localtranscribe-bootstrap-test"
-if (Test-Path $tempDir) {
-  Remove-Item $tempDir -Recurse -Force
-}
+$tempDir = Join-Path $env:TEMP "localtranscribe-bootstrap-test-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
 $servedBackend = Join-Path $tempDir "backend-win-x64.exe"

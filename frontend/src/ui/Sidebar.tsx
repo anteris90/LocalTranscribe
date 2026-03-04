@@ -68,12 +68,20 @@ export default function Sidebar(props: Props) {
         <button type="button" onClick={onStart} disabled={startDisabled} style={{ flex: 1, height: 36 }}>
           {startDisabled ? "Busy" : "Start"}
         </button>
-        <button type="button" onClick={onCheckUpdates} style={{ height: 36 }}>Check</button>
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" onClick={onApplyUpdates} disabled={isApplyingUpdates || (!modelUpdateAvailable && !ffmpegUpdateAvailable)} style={{ flex: 1, height: 36 }}>
-          {isApplyingUpdates ? "Updating..." : "Update"}
+        <button
+          type="button"
+          className="lt-btn-primary"
+          onClick={() => {
+            if (modelUpdateAvailable || ffmpegUpdateAvailable) {
+              onApplyUpdates();
+            } else {
+              onCheckUpdates();
+            }
+          }}
+          disabled={isApplyingUpdates}
+          style={{ height: 36 }}
+        >
+          {isApplyingUpdates ? "Updating..." : modelUpdateAvailable || ffmpegUpdateAvailable ? "Update" : "Check for updates"}
         </button>
       </div>
 

@@ -59,6 +59,10 @@
 /* Buttons and inputs */
 button { background: var(--button-bg); color: var(--text); border: 1px solid rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px; cursor: pointer }
 button:disabled { opacity: 0.5; cursor: not-allowed }
+/* Primary action button (use accent color) */
+.lt-btn-primary { background: var(--accent); color: white; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+.lt-btn-primary:hover { filter: brightness(1.05) }
+.lt-btn-primary:active { transform: translateY(1px) }
 input[type="file"], select { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 6px }
 
 /* Responsive layout */

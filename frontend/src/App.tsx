@@ -124,6 +124,9 @@ export function App() {
 
         if (event.status === "completed") {
           setIsDownloadingResources(false);
+          if (!jobId) {
+            setJobStatus("idle");
+          }
           setProgressPercent(100);
           setProgressStage("completed");
           if (message.length > 0) {
@@ -135,6 +138,9 @@ export function App() {
 
         if (event.status === "failed") {
           setIsDownloadingResources(false);
+          if (!jobId) {
+            setJobStatus("idle");
+          }
           setProgressStage("failed");
           if (message.length > 0) {
             setInfoMessage(message);
@@ -276,13 +282,15 @@ export function App() {
       const status = payload.status;
       if (status === "running") {
         setIsDownloadingResources(false);
+        if (!jobId) {
+          setJobStatus("idle");
+        }
         setInfoMessage("Backend connected");
         setErrorMessage("");
       } else if (status === "restarting") {
         setInfoMessage("Backend restarting");
       } else if (status === "bootstrapping") {
         setIsDownloadingResources(true);
-        setJobStatus("queued");
         const stage = typeof payload.stage === "string" ? payload.stage : "downloading";
         const message = typeof payload.message === "string" ? payload.message : "Preparing runtime...";
         setProgressStage(stage);

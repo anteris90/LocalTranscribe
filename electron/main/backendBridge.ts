@@ -34,6 +34,8 @@ type BridgeState = "stopped" | "starting" | "running";
 
 const HEARTBEAT_INTERVAL_MS = 5000;
 const HEARTBEAT_TIMEOUT_MS = 4000;
+const HEARTBEAT_STARTUP_TIMEOUT_MS = 30000;
+const HEARTBEAT_STARTUP_GRACE_MS = 60000;
 const START_TRANSCRIPTION_TIMEOUT_MS = 20 * 60 * 1000;
 const RESTART_WINDOW_MS = 60000;
 const MAX_RESTARTS_IN_WINDOW = 3;
@@ -49,6 +51,7 @@ export class BackendBridge {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatInFlight = false;
   private lastHeartbeatOkAt = 0;
+  private backendStartedAt = 0;
   private restartTimestamps: number[] = [];
   private isRestarting = false;
 
@@ -105,7 +108,7 @@ export class BackendBridge {
 
     return await new Promise<Record<string, unknown>>((resolve, reject) => {
       const timeoutMs = method === "ping"
-        ? HEARTBEAT_TIMEOUT_MS
+        ? this.getHeartbeatTimeoutMs()
         : method === "start_transcription"
           ? START_TRANSCRIPTION_TIMEOUT_MS
           : 30000;
@@ -181,6 +184,7 @@ export class BackendBridge {
 
     child.once("spawn", () => {
       this.state = "running";
+      this.backendStartedAt = Date.now();
       this.lastHeartbeatOkAt = Date.now();
       this.startHeartbeat();
       this.emitRendererEvent("backend:state", {
@@ -272,7 +276,7 @@ export class BackendBridge {
 
       if (this.heartbeatInFlight) {
         const elapsed = Date.now() - this.lastHeartbeatOkAt;
-        if (elapsed > HEARTBEAT_INTERVAL_MS + HEARTBEAT_TIMEOUT_MS) {
+        if (elapsed > HEARTBEAT_INTERVAL_MS + this.getHeartbeatTimeoutMs()) {
           this.handleBackendUnresponsive(elapsed);
         }
         return;
@@ -302,6 +306,13 @@ export class BackendBridge {
     if (this.child && !this.child.killed) {
       this.child.kill();
     }
+  }
+
+  private getHeartbeatTimeoutMs(): number {
+    if (this.backendStartedAt > 0 && Date.now() - this.backendStartedAt < HEARTBEAT_STARTUP_GRACE_MS) {
+      return HEARTBEAT_STARTUP_TIMEOUT_MS;
+    }
+    return HEARTBEAT_TIMEOUT_MS;
   }
 
   private handleBackendCrash(reason: string, details: Record<string, unknown>): void {

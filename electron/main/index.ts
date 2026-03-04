@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import * as fs from "node:fs";
+import * as http from "node:http";
 import * as https from "node:https";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -135,8 +136,14 @@ function emitBootstrapState(payload: Record<string, unknown>): void {
 function downloadFile(url: string, destinationPath: string, onProgress: (percent: number, downloaded: number, total: number | null) => void, redirectCount = 0): Promise<void> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
+    const client = parsed.protocol === "http:" ? http : parsed.protocol === "https:" ? https : null;
 
-    const request = https.get(parsed, (response) => {
+    if (!client) {
+      reject(new Error(`Unsupported backend download protocol: ${parsed.protocol}`));
+      return;
+    }
+
+    const request = client.get(parsed, (response) => {
       const statusCode = response.statusCode ?? 0;
       const location = response.headers.location;
 

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import * as fs from "node:fs";
 import * as https from "node:https";
 import * as path from "node:path";
+import * as os from "node:os";
 import { URL } from "node:url";
 
 import { BackendBridge } from "./backendBridge";
@@ -9,6 +10,15 @@ import { resolveRuntimePaths, type RuntimePaths } from "./runtimePaths";
 
 let mainWindow: BrowserWindow | null = null;
 let backendBridge: BackendBridge | null = null;
+
+// Synchronous early marker to detect if the Electron main module loads at all.
+try {
+  const tmpDir = os.tmpdir();
+  const marker = path.resolve(tmpDir, `localtranscribe_module_loaded_${process.pid}.txt`);
+  fs.writeFileSync(marker, JSON.stringify({ ts: new Date().toISOString(), pid: process.pid }), { encoding: "utf8" });
+} catch {
+  // best-effort, do not throw
+}
 
 function getOpenWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows();
@@ -42,7 +52,21 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
 
 function registerIpcHandlers(): void {
   ipcMain.handle("backend:request", async (_event, payload: { method: string; params?: Record<string, unknown> }) => {
-    if (!backendBridge) {
+    // If the renderer calls very early, the bridge may not be constructed yet.
+    // Wait a short period for bootstrap to finish to avoid a spurious error.
+    const waitForBridge = async (timeoutMs = 5000) => {
+      const start = Date.now();
+      while (!backendBridge) {
+        if (Date.now() - start > timeoutMs) {
+          return false;
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return true;
+    };
+
+    const available = await waitForBridge(5000);
+    if (!available || !backendBridge) {
       throw new Error("Backend bridge unavailable");
     }
 
@@ -248,6 +272,23 @@ async function ensurePackagedBackend(runtime: RuntimePaths): Promise<void> {
 async function bootstrapMain(): Promise<void> {
   await app.whenReady();
 
+  // Write a small startup marker so we can detect whether bootstrap began.
+  try {
+    const outDir = app.getPath("userData");
+    const outPath = path.resolve(outDir, "bootstrap_started.json");
+    const startupInfo = {
+      ts: new Date().toISOString(),
+      pid: process.pid,
+      argv: process.argv,
+      env: {
+        LOCALTRANSCRIBE_BACKEND_URL: process.env.LOCALTRANSCRIBE_BACKEND_URL ?? null,
+      },
+    };
+    fs.writeFileSync(outPath, JSON.stringify(startupInfo, null, 2), { encoding: "utf8" });
+  } catch {
+    // best effort
+  }
+
   const runtime = resolveRuntimePaths();
 
   registerIpcHandlers();
@@ -277,14 +318,24 @@ async function bootstrapMain(): Promise<void> {
 
 void bootstrapMain().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : "unknown bootstrap error";
-  process.stderr.write(
-    `${JSON.stringify({
-      source: "electron-main",
-      event: "bootstrap_failure",
-      ts: new Date().toISOString(),
-      message,
-    })}\n`
-  );
+  const details = {
+    source: "electron-main",
+    event: "bootstrap_failure",
+    ts: new Date().toISOString(),
+    message,
+    stack: error instanceof Error ? error.stack : null,
+  };
+
+  process.stderr.write(`${JSON.stringify(details)}\n`);
+
+  try {
+    const outDir = app.getPath("userData");
+    const outPath = path.resolve(outDir, "bootstrap_failure.json");
+    fs.writeFileSync(outPath, JSON.stringify(details, null, 2), { encoding: "utf8" });
+  } catch {
+    // best effort, do not crash on logging failure
+  }
+
   app.exit(1);
 });
 

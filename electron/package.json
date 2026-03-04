@@ -5,15 +5,17 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "npm run build && electron .",
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/generate-icons.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "pack:dir": "electron-builder --dir --config electron-builder.json",
-    "dist": "electron-builder --config electron-builder.json"
+    "pack:dir": "node scripts/generate-icons.mjs && electron-builder --dir --config electron-builder.json",
+    "dist": "node scripts/generate-icons.mjs && electron-builder --config electron-builder.json"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "electron": "31.7.3",
     "electron-builder": "^24.13.3",
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.33.5",
     "typescript": "^5.6.3"
   }
 }

@@ -35,7 +35,9 @@ class TranscriptionService:
         if not file_path.exists() or not file_path.is_file():
             raise BackendError(code=2101, message="Input file not found", data={"path": str(file_path)})
 
-        attempt_plan = self._build_attempt_plan(request.requested_device)
+        # Probe media duration early so we can prefer safer compute types for long files
+        media_duration = self._probe_duration_seconds(file_path)
+        attempt_plan = self._build_attempt_plan(request.requested_device, media_duration)
         errors: list[dict[str, Any]] = []
         executed_attempts: list[AttemptResult] = []
 
@@ -227,8 +229,14 @@ class TranscriptionService:
                 data={"requested_device": request.requested_device},
             )
 
-    def _build_attempt_plan(self, requested_device: str) -> list[DeviceAttempt]:
+    def _build_attempt_plan(self, requested_device: str, media_duration: float | None) -> list[DeviceAttempt]:
         requested = requested_device.strip().lower()
+
+        # Heuristic: for long media files prefer lower-memory compute types first to avoid GPU OOM.
+        long_media_threshold_seconds = 20 * 60  # 20 minutes
+        prefer_safer_gpu_first = False
+        if media_duration is not None and media_duration >= long_media_threshold_seconds:
+            prefer_safer_gpu_first = True
 
         if requested == "cpu":
             return [DeviceAttempt(device="cpu", compute_type="int8", reason="requested_cpu")]
@@ -237,6 +245,12 @@ class TranscriptionService:
         if requested == "gpu":
             if gpu_primary is None:
                 return [DeviceAttempt(device="cpu", compute_type="int8", reason="gpu_unavailable_fallback_to_cpu")]
+            if prefer_safer_gpu_first:
+                return [
+                    DeviceAttempt(device=gpu_primary, compute_type="int8_float16", reason="requested_gpu_safer_compute"),
+                    DeviceAttempt(device=gpu_primary, compute_type="float16", reason="retry_with_standard_gpu_compute"),
+                    DeviceAttempt(device="cpu", compute_type="int8", reason="fallback_to_cpu_after_gpu_failures"),
+                ]
             return [
                 DeviceAttempt(device=gpu_primary, compute_type="float16", reason="requested_gpu_primary"),
                 DeviceAttempt(device=gpu_primary, compute_type="int8_float16", reason="retry_with_safer_gpu_compute"),
@@ -245,6 +259,13 @@ class TranscriptionService:
 
         if gpu_primary is None:
             return [DeviceAttempt(device="cpu", compute_type="int8", reason="auto_selected_cpu")]
+
+        if prefer_safer_gpu_first:
+            return [
+                DeviceAttempt(device=gpu_primary, compute_type="int8_float16", reason="auto_selected_gpu_safer_compute"),
+                DeviceAttempt(device=gpu_primary, compute_type="float16", reason="retry_with_standard_gpu_compute"),
+                DeviceAttempt(device="cpu", compute_type="int8", reason="fallback_to_cpu_after_gpu_failures"),
+            ]
 
         return [
             DeviceAttempt(device=gpu_primary, compute_type="float16", reason="auto_selected_gpu"),

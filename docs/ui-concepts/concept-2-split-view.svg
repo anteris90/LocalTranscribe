@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <defs>
+    <style>
+      .bg{fill:#f7f9fb}
+      .panel{fill:#ffffff;stroke:#e6eef2;stroke-width:1}
+      .accent{fill:#0b8f6b}
+      .mono{font-family:Menlo,monospace;font-size:13px;fill:#0b2730}
+      .title{font-size:18px;fill:#07262e;font-family:Inter,system-ui}
+      .muted{fill:#5b6d74}
+      .btn{fill:#eef6f3;stroke:#d6efe6}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <rect x="40" y="40" width="1120" height="640" rx="10" class="panel"/>
+
+  <!-- Header -->
+  <text x="64" y="76" class="title">LocalTranscribe — Modern Console Feel (Light)</text>
+  <g transform="translate(920,48)">
+    <rect x="0" y="0" width="180" height="40" rx="8" class="btn"/>
+    <text x="26" y="26" class="mono">Device: Auto</text>
+  </g>
+
+  <!-- Split layout: left - waveform & controls, right - transcript -->
+  <g transform="translate(64,120)">
+    <rect x="0" y="0" width="640" height="520" rx="8" fill="#fbfdfc" stroke="#e1eef0"/>
+    <text x="18" y="28" class="mono">Playback</text>
+    <rect x="18" y="44" width="604" height="120" rx="6" fill="#e9fbf6"/>
+    <!-- waveform simplified -->
+    <g fill="#0b8f6b">
+      <rect x="36" y="76" width="6" height="60" rx="3"/>
+      <rect x="56" y="64" width="6" height="72" rx="3"/>
+      <rect x="76" y="88" width="6" height="48" rx="3"/>
+      <rect x="96" y="52" width="6" height="84" rx="3"/>
+      <rect x="116" y="70" width="6" height="66" rx="3"/>
+    </g>
+
+    <g transform="translate(18,180)">
+      <rect x="0" y="0" width="604" height="64" rx="6" fill="#ffffff" stroke="#e6f2ef"/>
+      <text x="12" y="40" class="mono">[Play] [Pause] [Seek]  •  Speed: 1.0x  •  Export</text>
+    </g>
+  </g>
+
+  <g transform="translate(728,120)">
+    <rect x="0" y="0" width="456" height="520" rx="8" fill="#ffffff" stroke="#e6eef2"/>
+    <text x="18" y="28" class="mono">Transcript (monospace + timestamps)</text>
+    <g transform="translate(18,48)" class="mono">
+      <text y="0">00:00.00 Speaker 1: Welcome to LocalTranscribe.</text>
+      <text y="26">00:05.34 Speaker 2: The UI combines a console look with modern spacing.</text>
+      <text y="52">00:12.10 Speaker 1: Click a line to jump in playback.</text>
+    </g>
+  </g>
+
+  <!-- Footer console strip -->
+  <rect x="64" y="660" width="1120" height="12" rx="6" fill="#eaf6f2"/>
+  <text x="72" y="670" class="muted">Status: models/small loaded • ffmpeg OK • Memory: 3.2 GB</text>
+</svg>

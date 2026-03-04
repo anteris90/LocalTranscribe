@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "react";
+import "./ui/theme.css";
+import Sidebar from "./ui/Sidebar";
+import TranscriptPanel from "./ui/TranscriptPanel";
+import ConsolePanel from "./ui/ConsolePanel";
 
 import {
   checkResourceUpdates,
@@ -75,6 +79,41 @@ export function App() {
     }
     setLogsText((prev) => (prev.trim().length === 0 ? text : `${prev}\n${text}`));
   };
+
+  // Apply persisted button background color and listen for Edit->Button color menu
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("lt:button-bg");
+      if (stored && stored.trim().length > 0) {
+        document.documentElement.style.setProperty("--button-bg", stored);
+      }
+    } catch {
+      // ignore
+    }
+
+    const unsub = (window as any).localTranscribeBackend?.onOpenColorPicker?.(() => {
+      try {
+        const input = document.createElement("input");
+        input.type = "color";
+        const current = getComputedStyle(document.documentElement).getPropertyValue("--button-bg")?.trim() || "#0b2a5a";
+        input.value = current;
+        input.style.position = "fixed";
+        input.style.left = "-9999px";
+        document.body.appendChild(input);
+        input.addEventListener("input", () => {
+          const val = input.value;
+          document.documentElement.style.setProperty("--button-bg", val);
+          try { window.localStorage.setItem("lt:button-bg", val); } catch {}
+        });
+        input.click();
+        setTimeout(() => { try { document.body.removeChild(input); } catch {} }, 3000);
+      } catch {
+        // ignore
+      }
+    });
+
+    return () => { try { unsub?.(); } catch {} };
+  }, []);
 
   useEffect(() => {
     void getJobStatus()
@@ -433,6 +472,8 @@ export function App() {
     }
   };
 
+
+
   const onExport = async (type: ExportType) => {
     if (!hasTranscript) {
       return;
@@ -583,71 +624,29 @@ export function App() {
   };
 
   return (
-    <div style={{ padding: "16px", fontFamily: "Segoe UI, sans-serif", color: "#e5e7eb", backgroundColor: "#111827", minHeight: "100vh" }}>
-      <h1 style={{ marginTop: 0 }}>LocalTranscribe</h1>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 180px 180px", gap: "12px", alignItems: "end" }}>
-        <div>
-          <label htmlFor="filePicker" style={{ display: "block", marginBottom: "4px" }}>
-            Audio/Video File
-          </label>
-          <input
-            id="filePicker"
-            type="file"
-            accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac"
-            onChange={onPickFile}
-            disabled={isJobActive}
-            style={{ width: "100%" }}
-          />
-          <div style={{ fontSize: "12px", opacity: 0.85, marginTop: "4px" }}>
-            {selectedFileName || "No file selected"}
+    <div className="lt-root" style={{ minHeight: "100vh" }}>
+      <div className="lt-container">
+        <div className="lt-topbar">
+          <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              className="lt-btn-primary"
+              onClick={() => {
+                if (modelUpdateAvailable || ffmpegUpdateAvailable) {
+                  onApplyUpdates();
+                } else {
+                  onCheckUpdates();
+                }
+              }}
+              disabled={isApplyingUpdates}
+            >
+              {isApplyingUpdates ? "Updating..." : modelUpdateAvailable || ffmpegUpdateAvailable ? "Update" : "Check for updates"}
+            </button>
           </div>
         </div>
 
-        <div>
-          <label htmlFor="modelSelect" style={{ display: "block", marginBottom: "4px" }}>
-            Model
-          </label>
-          <select
-            id="modelSelect"
-            value={selectedModel}
-            onChange={(event) => setSelectedModel(event.target.value as ModelOption)}
-            disabled={isJobActive}
-            style={{ width: "100%", height: "32px" }}
-          >
-            {modelOptions.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="deviceSelect" style={{ display: "block", marginBottom: "4px" }}>
-            Device
-          </label>
-          <select
-            id="deviceSelect"
-            value={selectedDevice}
-            onChange={(event) => setSelectedDevice(event.target.value as DeviceOption)}
-            disabled={isJobActive}
-            style={{ width: "100%", height: "32px" }}
-          >
-            {deviceOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button type="button" onClick={onStart} disabled={startDisabled} style={{ height: "32px" }}>
-          {isJobActive ? "Transcribing..." : "Start Transcription"}
-        </button>
-      </div>
-
-      <div style={{ marginTop: "14px", padding: "10px", border: "1px solid #374151", borderRadius: "6px", background: "#1f2937" }}>
+      <div className="lt-progress-strip">
         <div>
           Progress: {progressPercent}% | Stage: {progressStage}
         </div>
@@ -666,73 +665,43 @@ export function App() {
         {errorMessage ? <div style={{ marginTop: "6px", color: "#fca5a5" }}>{errorMessage}</div> : null}
       </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <label htmlFor="transcriptText" style={{ display: "block", marginBottom: "4px" }}>
-          Transcript
-        </label>
-        <textarea
-          id="transcriptText"
-          value={transcriptText}
-          readOnly
-          style={{
-            width: "100%",
-            minHeight: "360px",
-            maxHeight: "420px",
-            overflowY: "auto",
-            resize: "vertical",
-            background: "#0b1220",
-            color: "#e5e7eb",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            padding: "10px",
-          }}
-        />
-      </div>
+      <div className="lt-main-grid">
+        <div className="lt-file-spanner lt-panel">
+          <input id="filePicker" className="lt-file-input" type="file" accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac" onChange={onPickFile} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center", width: "100%" }}>
+            <button type="button" className="lt-btn lt-file-btn" onClick={() => { const el = document.getElementById("filePicker") as HTMLInputElement | null; el?.click(); }}>Select: Audio/Video</button>
+            <div className="lt-file-name" title={selectedFileName || "No file selected"} style={{ marginLeft: 8, flex: 1 }}>{selectedFileName || "No file selected"}</div>
+          </div>
+        </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <label htmlFor="logsText" style={{ display: "block", marginBottom: "4px" }}>
-          Logs
-        </label>
-        <textarea
-          id="logsText"
-          value={logsText}
-          readOnly
-          style={{
-            width: "100%",
-            minHeight: "180px",
-            maxHeight: "260px",
-            overflowY: "auto",
-            resize: "vertical",
-            background: "#0b1220",
-            color: "#9ca3af",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            padding: "10px",
-          }}
+        <Sidebar
+          selectedFileName={selectedFileName}
+          selectedFilePath={selectedFilePath}
+          selectedModel={selectedModel}
+          selectedDevice={selectedDevice}
+          onModelChange={(m) => setSelectedModel(m)}
+          onDeviceChange={(d) => setSelectedDevice(d)}
+          onPickFile={onPickFile}
+          onStart={onStart}
+          startDisabled={startDisabled}
+          onCheckUpdates={onCheckUpdates}
+          onApplyUpdates={onApplyUpdates}
+          isApplyingUpdates={isApplyingUpdates}
+          modelUpdateAvailable={modelUpdateAvailable}
+          ffmpegUpdateAvailable={ffmpegUpdateAvailable}
+          onExport={onExport}
+          hasTranscript={hasTranscript}
         />
-      </div>
 
-      <div style={{ marginTop: "14px", display: "flex", gap: "10px" }}>
-        <button type="button" onClick={() => void onCheckUpdates()} disabled={isJobActive}>
-          Check Updates
-        </button>
-        <button
-          type="button"
-          onClick={() => void onApplyUpdates()}
-          disabled={isJobActive || isApplyingUpdates || (!modelUpdateAvailable && !ffmpegUpdateAvailable)}
-        >
-          {isApplyingUpdates ? "Updating..." : "Update Available Resources"}
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("txt")}>
-          Export TXT
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("srt")}>
-          Export SRT
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("json")}>
-          Export JSON
-        </button>
+        <main>
+          <section>
+            <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+          </section>
+        </main>
+
+        <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} />
       </div>
+    </div>
     </div>
   );
 }

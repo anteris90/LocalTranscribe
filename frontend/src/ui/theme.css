@@ -3,10 +3,10 @@
   --panel: #07171a;
   --muted: #7a8b8f;
   --text: #d6efe8;
-  --accent: #18d18a;
+  --accent: #1e40af; /* navy blue */
   --surface: #061319;
   --border: #0e2b31;
-  --button-bg: #0f2b28;
+  --button-bg: #0b274f; /* darker navy button background */
 }
 
 @media (prefers-color-scheme: light) {

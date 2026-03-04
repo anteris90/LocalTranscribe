@@ -595,7 +595,7 @@ export function App() {
           <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
         </div>
 
-      <div style={{ marginTop: "14px", padding: "10px", border: "1px solid #374151", borderRadius: "6px", background: "#1f2937" }}>
+      <div className="lt-progress-strip">
         <div>
           Progress: {progressPercent}% | Stage: {progressStage}
         </div>
@@ -614,7 +614,7 @@ export function App() {
         {errorMessage ? <div style={{ marginTop: "6px", color: "#fca5a5" }}>{errorMessage}</div> : null}
       </div>
 
-      <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "260px 1fr 260px", gap: 12 }}>
+      <div className="lt-main-grid">
         <Sidebar
           selectedFileName={selectedFileName}
           selectedFilePath={selectedFilePath}

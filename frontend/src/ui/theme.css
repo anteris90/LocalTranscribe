@@ -22,7 +22,8 @@
   }
 }
 
-body.lt-root {
+
+.lt-root {
   background: var(--bg);
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
@@ -33,8 +34,14 @@ body.lt-root {
 }
 
 .lt-topbar {
-  display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:6px 0;
 }
+
+.lt-topbar h1 { font-size:20px; margin:0; color:var(--text); font-weight:600 }
+
+.lt-progress-strip { margin-top: 14px; padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border) }
+
+.lt-main-grid { margin-top: 14px; display: grid; grid-template-columns: 260px 1fr 260px; gap: 12px }
 
 .lt-grid { display:grid; grid-template-columns: 1fr 220px 180px 180px; gap:12px; align-items:end }
 
@@ -64,9 +71,8 @@ input[type="file"], select { background: transparent; color: var(--text); border
 
 @media (max-width: 720px) {
   .lt-container { padding: 8px }
-  /* stack into single column on small screens */
-  .lt-container > .lt-topbar + div { display: block }
-  .lt-container main, .lt-container aside { width: 100% }
-  .lt-container .lt-panel { width: 100% }
+  .lt-topbar h1 { font-size: 16px }
+  .lt-main-grid { grid-template-columns: 1fr; }
+  .lt-main-grid > aside, .lt-main-grid > main { width: 100%; }
 }
 

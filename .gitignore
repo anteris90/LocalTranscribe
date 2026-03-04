@@ -1,0 +1,14 @@
+node_modules/
+frontend/node_modules/
+electron/node_modules/
+frontend/dist/
+electron/dist/
+backend/.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+dist/
+bin/
+build/
+

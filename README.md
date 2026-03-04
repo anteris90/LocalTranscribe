@@ -1,68 +1,80 @@
 # LocalTranscribe
 
-Local desktop transcription app (Electron + Python backend) with model/ffmpeg on-demand downloads.
+LocalTranscribe is a cross-platform desktop application for fully offline audio and video transcription. It pairs an Electron + React frontend with a Python backend to run Whisper-style models locally (CPU/GPU) and export transcripts in common formats.
 
-## Local setup
+**Key features**
+- Fully offline transcription using locally stored models
+- On-demand downloads for backend runtime, models, and `ffmpeg` (thin-installer mode)
+- Device selector: CPU / GPU (CUDA on Windows, MPS on macOS) when available
+- Supports common media formats: `mp4`, `webm`, `wav`, `mp3`, `mkv`
+- Export formats: `.txt`, `.srt`, `.json`
 
-### Windows
+**Repository layout (high level)**
+- `backend/` — Python backend, virtualenv and service code
+- `electron/`, `preload/`, `frontend/` — Electron app, preload bridge and frontend UI
+- `models/` — Local model folders (e.g. `models/small`)
+- `scripts/` — Bootstrapping and helper scripts
 
-`./scripts/bootstrap.ps1`
+## Quickstart
 
-### macOS/Linux
+Prerequisites
+- Python 3.11+ (for local backend development)
+- Node 18+ and npm (for frontend/electron builds)
 
-`./scripts/bootstrap.sh` 
+1) Bootstrap the backend runtime and tooling
 
-## Build commands
+Windows (PowerShell):
+```powershell
+./scripts/bootstrap.ps1
+```
 
+macOS / Linux (bash):
+```bash
+./scripts/bootstrap.sh
+```
+
+2) Development run
+- Ensure the backend virtualenv exists at `backend/.venv` (created by bootstrap).
+- Start the Electron app via the workspace npm scripts or run the Electron entry point from `electron/`.
+
+## Build & Release
 - Frontend build: `npm run build:frontend`
 - Electron build: `npm run build:electron`
-- Windows package: `npm --workspace electron run dist`
+- Build backend onefile artifact: `npm run build:backend:onefile`
+- Package Windows installer (thin): see `package.json` scripts and `BUILD_Info.md`.
 
-For detailed release/testing steps, see `BUILD_Info.md`.
+## Fast local testing
+Run the thin-installer local test (serves a local backend artifact to the app):
 
-## Default distribution mode (thin installer)
+```bash
+npm run test:thin-local
+```
 
-Windows installer is now **thin by default**:
+## Troubleshooting — common preflight errors
 
-- Installer contains app shell only.
-- Backend runtime is downloaded on first run.
-- Models and ffmpeg are downloaded on demand from the app flow.
+- **Preflight failed: local model directory is missing for 'small'**
+	- Ensure model files are placed under `models/small`. See `models/small/README.md` for expected layout and conversion notes.
 
-Backend download URL pattern used by default:
+- **Preflight failed: ffmpeg binary is missing**
+	- Install `ffmpeg` or place a static `ffmpeg` binary on `PATH`. The app uses `ffmpeg` for audio extraction from video files.
 
-- `https://github.com/LocalTranscribe/LocalTranscribe/releases/download/v<app-version>/backend-win-x64.exe`
+- **Backend crashed: process_exit / Backend is not running**
+	- Verify `backend/.venv` exists and dependencies installed. Try running the backend entry manually from `backend/` to inspect errors.
 
-Override source URL (testing or custom hosting):
+If you see errors similar to those recorded in app logs (missing model dir, missing ffmpeg, or backend crashes), confirm:
 
-- `LOCALTRANSCRIBE_BACKEND_URL=<url>`
+- `models/<size>` exists and contains the expected model files.
+- `ffmpeg` is available on `PATH` or placed in the project `bin` folder used by the app.
+- The backend virtualenv was created by `./scripts/bootstrap.*` and Python is accessible.
 
-## How to publish backend artifact for release
+## Related docs
+- Architecture and developer notes: [AGENT.md](AGENT.md)
+- Backend details: [backend/README.md](backend/README.md)
+- Model packaging: [models/small/README.md](models/small/README.md)
 
-1. Build backend bootstrap artifact:
+## Contributing
+- Follow contribution notes in `AGENT.md` and add tests where appropriate. Backend tests are configured via `backend/pyproject.toml`.
 
-`npm run build:backend:onefile`
+## License
+MIT
 
-2. Upload artifact to matching GitHub Release tag:
-
-`npm run release:upload-backend`
-
-This uploads `backend/dist/windows/backend.exe` as `backend-win-x64.exe`.
-
-## Fast local test (without full rebuild)
-
-Run thin-installer bootstrap test using local HTTP served backend artifact:
-
-`npm run test:thin-local`
-
-What this does:
-
-- Uses existing `dist/packages/win-unpacked/LocalTranscribe.exe`
-- Serves local `backend.exe` as `backend-win-x64.exe`
-- Sets `LOCALTRANSCRIBE_BACKEND_URL` to local server
-- Optionally clears runtime cache before launch
-
-## Notes
-
-- If first-run bootstrap fails, app shows explicit bootstrap error in UI.
-- If update check reports "Method not found", backend/runtime and UI versions are mismatched; install latest package.
-- If packaging fails due locked files, close running LocalTranscribe/electron processes and retry.

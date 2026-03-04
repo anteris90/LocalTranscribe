@@ -1,1 +1,0 @@
-"""LocalTranscribe backend package."""

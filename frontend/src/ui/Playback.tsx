@@ -25,7 +25,7 @@ export default function Playback({ fileName, isJobActive, progressPercent, isDow
       <div className="lt-wave" style={{ marginBottom: 12 }}>
         {/* decorative waveform path - placeholder; will be replaced with real canvas/wave on integration */}
         <svg width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none">
-          <path d="M0 60 C40 20,80 100,120 60 C160 20,200 100,240 60 C280 20,320 100,360 60 C400 20,440 100,480 60 C520 20,560 100,600 60" stroke="#0ad688" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <path d="M0 60 C40 20,80 100,120 60 C160 20,200 100,240 60 C280 20,320 100,360 60 C400 20,440 100,480 60 C520 20,560 100,600 60" stroke="#1e40af" strokeWidth="2" fill="none" strokeLinecap="round" />
         </svg>
       </div>
 

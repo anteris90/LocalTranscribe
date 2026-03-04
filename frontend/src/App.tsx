@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "react";
 import "./ui/theme.css";
-import Playback from "./ui/Playback";
+import Sidebar from "./ui/Sidebar";
+import TranscriptPanel from "./ui/TranscriptPanel";
+import ConsolePanel from "./ui/ConsolePanel";
 
 import {
   checkResourceUpdates,
@@ -48,7 +50,6 @@ export function App() {
   const [logsText, setLogsText] = useState<string>("");
   const [transcriptSegments, setTranscriptSegments] = useState<ExportSegment[]>([]);
   const [isDownloadingResources, setIsDownloadingResources] = useState<boolean>(false);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [effectiveDevice, setEffectiveDevice] = useState<string | null>(null);
   const [effectiveComputeType, setEffectiveComputeType] = useState<string | null>(null);
   const [modelUpdateAvailable, setModelUpdateAvailable] = useState<boolean>(false);
@@ -436,9 +437,7 @@ export function App() {
     }
   };
 
-  const onTogglePlay = () => {
-    setIsPlaying((s) => !s);
-  };
+
 
   const onExport = async (type: ExportType) => {
     if (!hasTranscript) {
@@ -596,67 +595,6 @@ export function App() {
           <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
         </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 180px 180px", gap: "12px", alignItems: "end" }}>
-        <div>
-          <label htmlFor="filePicker" style={{ display: "block", marginBottom: "4px" }}>
-            Audio/Video File
-          </label>
-          <input
-            id="filePicker"
-            type="file"
-            accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac"
-            onChange={onPickFile}
-            disabled={isJobActive}
-            style={{ width: "100%" }}
-          />
-          <div style={{ fontSize: "12px", opacity: 0.85, marginTop: "4px" }}>
-            {selectedFileName || "No file selected"}
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="modelSelect" style={{ display: "block", marginBottom: "4px" }}>
-            Model
-          </label>
-          <select
-            id="modelSelect"
-            value={selectedModel}
-            onChange={(event) => setSelectedModel(event.target.value as ModelOption)}
-            disabled={isJobActive}
-            style={{ width: "100%", height: "32px" }}
-          >
-            {modelOptions.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="deviceSelect" style={{ display: "block", marginBottom: "4px" }}>
-            Device
-          </label>
-          <select
-            id="deviceSelect"
-            value={selectedDevice}
-            onChange={(event) => setSelectedDevice(event.target.value as DeviceOption)}
-            disabled={isJobActive}
-            style={{ width: "100%", height: "32px" }}
-          >
-            {deviceOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button type="button" onClick={onStart} disabled={startDisabled} style={{ height: "32px" }}>
-          {isJobActive ? "Transcribing..." : "Start Transcription"}
-        </button>
-      </div>
-
       <div style={{ marginTop: "14px", padding: "10px", border: "1px solid #374151", borderRadius: "6px", background: "#1f2937" }}>
         <div>
           Progress: {progressPercent}% | Stage: {progressStage}
@@ -676,81 +614,29 @@ export function App() {
         {errorMessage ? <div style={{ marginTop: "6px", color: "#fca5a5" }}>{errorMessage}</div> : null}
       </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <Playback
-          fileName={selectedFileName || selectedFilePath}
-          isJobActive={isJobActive}
-          progressPercent={progressPercent}
-          isDownloadingResources={isDownloadingResources}
-          isPlaying={isPlaying}
-          onTogglePlay={onTogglePlay}
+      <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "260px 1fr 260px", gap: 12 }}>
+        <Sidebar
+          selectedFileName={selectedFileName}
+          selectedFilePath={selectedFilePath}
+          selectedModel={selectedModel}
+          selectedDevice={selectedDevice}
+          onPickFile={onPickFile}
+          onStart={onStart}
+          startDisabled={startDisabled}
+          onCheckUpdates={onCheckUpdates}
+          onApplyUpdates={onApplyUpdates}
+          isApplyingUpdates={isApplyingUpdates}
+          modelUpdateAvailable={modelUpdateAvailable}
+          ffmpegUpdateAvailable={ffmpegUpdateAvailable}
+          onExport={onExport}
+          hasTranscript={hasTranscript}
         />
 
-        <label htmlFor="transcriptText" style={{ display: "block", marginBottom: "4px" }}>
-          Transcript
-        </label>
-        <textarea
-          id="transcriptText"
-          value={transcriptText}
-          readOnly
-          style={{
-            width: "100%",
-            minHeight: "360px",
-            maxHeight: "420px",
-            overflowY: "auto",
-            resize: "vertical",
-            background: "#0b1220",
-            color: "#e5e7eb",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            padding: "10px",
-          }}
-        />
-      </div>
+        <main>
+          <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+        </main>
 
-      <div style={{ marginTop: "14px" }}>
-        <label htmlFor="logsText" style={{ display: "block", marginBottom: "4px" }}>
-          Logs
-        </label>
-        <textarea
-          id="logsText"
-          value={logsText}
-          readOnly
-          style={{
-            width: "100%",
-            minHeight: "180px",
-            maxHeight: "260px",
-            overflowY: "auto",
-            resize: "vertical",
-            background: "#0b1220",
-            color: "#9ca3af",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            padding: "10px",
-          }}
-        />
-      </div>
-
-      <div style={{ marginTop: "14px", display: "flex", gap: "10px" }}>
-        <button type="button" onClick={() => void onCheckUpdates()} disabled={isJobActive}>
-          Check Updates
-        </button>
-        <button
-          type="button"
-          onClick={() => void onApplyUpdates()}
-          disabled={isJobActive || isApplyingUpdates || (!modelUpdateAvailable && !ffmpegUpdateAvailable)}
-        >
-          {isApplyingUpdates ? "Updating..." : "Update Available Resources"}
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("txt")}>
-          Export TXT
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("srt")}>
-          Export SRT
-        </button>
-        <button type="button" disabled={!hasTranscript} onClick={() => void onExport("json")}>
-          Export JSON
-        </button>
+        <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} />
       </div>
     </div>
   );

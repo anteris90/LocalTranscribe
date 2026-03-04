@@ -13,12 +13,12 @@ export default function Playback({ fileName, isJobActive, progressPercent, isDow
   return (
     <div className="lt-playback lt-panel" role="region" aria-label="Playback">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div style={{ fontFamily: "Menlo, monospace" }}>{fileName || "No file selected"}</div>
+        <div>{fileName || "No file selected"}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={onTogglePlay} disabled={!fileName || isDownloadingResources} style={{ height: 32 }}>
+          <button type="button" className="lt-btn" onClick={onTogglePlay} disabled={!fileName || isDownloadingResources}>
             {isPlaying ? "Pause" : "Play"}
           </button>
-          <button type="button" disabled={isJobActive} style={{ height: 32 }}>Load</button>
+          <button type="button" className="lt-btn" disabled={isJobActive}>Load</button>
         </div>
       </div>
 
@@ -33,7 +33,7 @@ export default function Playback({ fileName, isJobActive, progressPercent, isDow
         <div style={{ flex: 1 }}>
           <div className="lt-progress"><div className="bar" style={{ width: `${progressPercent}%` }} /></div>
         </div>
-        <div style={{ width: 72, textAlign: "right", fontFamily: "Menlo, monospace", color: "var(--muted)" }}>{progressPercent}%</div>
+        <div style={{ width: 72, textAlign: "right", color: "var(--muted)" }}>{progressPercent}%</div>
       </div>
     </div>
   );

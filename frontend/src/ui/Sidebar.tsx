@@ -40,11 +40,7 @@ export default function Sidebar(props: Props) {
 
   return (
     <aside style={{ width: 260, display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="lt-panel">
-        <label style={{ display: "block", marginBottom: 6 }}>Audio/Video File</label>
-        <input id="filePicker" type="file" accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac" onChange={onPickFile} />
-        <div style={{ marginTop: 8, fontFamily: "Menlo, monospace", color: "var(--muted)" }}>{selectedFileName || "No file selected"}</div>
-      </div>
+      {/* File picker moved to main area so it can align with the Status panel */}
 
       <div className="lt-panel">
         <label style={{ display: "block", marginBottom: 6 }}>Model</label>
@@ -65,31 +61,17 @@ export default function Sidebar(props: Props) {
       </div>
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" onClick={onStart} disabled={startDisabled} style={{ flex: 1, height: 36 }}>
-          {startDisabled ? "Busy" : "Start"}
-        </button>
-        <button
-          type="button"
-          className="lt-btn-primary"
-          onClick={() => {
-            if (modelUpdateAvailable || ffmpegUpdateAvailable) {
-              onApplyUpdates();
-            } else {
-              onCheckUpdates();
-            }
-          }}
-          disabled={isApplyingUpdates}
-          style={{ height: 36 }}
-        >
-          {isApplyingUpdates ? "Updating..." : modelUpdateAvailable || ffmpegUpdateAvailable ? "Update" : "Check for updates"}
+        <button type="button" className="lt-btn" onClick={onStart} disabled={startDisabled} style={{ flex: 1 }}>
+          {startDisabled ? "Nothing to do" : "Start"}
         </button>
       </div>
 
       <div className="lt-panel" style={{ marginTop: "auto" }}>
+        <label style={{ display: "block", marginBottom: 8 }}>Export</label>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={() => onExport("txt")} disabled={!hasTranscript}>TXT</button>
-          <button type="button" onClick={() => onExport("srt")} disabled={!hasTranscript}>SRT</button>
-          <button type="button" onClick={() => onExport("json")} disabled={!hasTranscript}>JSON</button>
+          <button type="button" className="lt-btn" onClick={() => onExport("txt")} disabled={!hasTranscript}>TXT</button>
+          <button type="button" className="lt-btn" onClick={() => onExport("srt")} disabled={!hasTranscript}>SRT</button>
+          <button type="button" className="lt-btn" onClick={() => onExport("json")} disabled={!hasTranscript}>JSON</button>
         </div>
       </div>
     </aside>

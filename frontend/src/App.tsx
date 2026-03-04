@@ -80,6 +80,41 @@ export function App() {
     setLogsText((prev) => (prev.trim().length === 0 ? text : `${prev}\n${text}`));
   };
 
+  // Apply persisted button background color and listen for Edit->Button color menu
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("lt:button-bg");
+      if (stored && stored.trim().length > 0) {
+        document.documentElement.style.setProperty("--button-bg", stored);
+      }
+    } catch {
+      // ignore
+    }
+
+    const unsub = (window as any).localTranscribeBackend?.onOpenColorPicker?.(() => {
+      try {
+        const input = document.createElement("input");
+        input.type = "color";
+        const current = getComputedStyle(document.documentElement).getPropertyValue("--button-bg")?.trim() || "#0b2a5a";
+        input.value = current;
+        input.style.position = "fixed";
+        input.style.left = "-9999px";
+        document.body.appendChild(input);
+        input.addEventListener("input", () => {
+          const val = input.value;
+          document.documentElement.style.setProperty("--button-bg", val);
+          try { window.localStorage.setItem("lt:button-bg", val); } catch {}
+        });
+        input.click();
+        setTimeout(() => { try { document.body.removeChild(input); } catch {} }, 3000);
+      } catch {
+        // ignore
+      }
+    });
+
+    return () => { try { unsub?.(); } catch {} };
+  }, []);
+
   useEffect(() => {
     void getJobStatus()
       .then((response) => {
@@ -593,6 +628,22 @@ export function App() {
       <div className="lt-container">
         <div className="lt-topbar">
           <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              className="lt-btn-primary"
+              onClick={() => {
+                if (modelUpdateAvailable || ffmpegUpdateAvailable) {
+                  onApplyUpdates();
+                } else {
+                  onCheckUpdates();
+                }
+              }}
+              disabled={isApplyingUpdates}
+            >
+              {isApplyingUpdates ? "Updating..." : modelUpdateAvailable || ffmpegUpdateAvailable ? "Update" : "Check for updates"}
+            </button>
+          </div>
         </div>
 
       <div className="lt-progress-strip">
@@ -615,6 +666,14 @@ export function App() {
       </div>
 
       <div className="lt-main-grid">
+        <div className="lt-file-spanner lt-panel">
+          <input id="filePicker" className="lt-file-input" type="file" accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac" onChange={onPickFile} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center", width: "100%" }}>
+            <button type="button" className="lt-btn lt-file-btn" onClick={() => { const el = document.getElementById("filePicker") as HTMLInputElement | null; el?.click(); }}>Select: Audio/Video</button>
+            <div className="lt-file-name" title={selectedFileName || "No file selected"} style={{ marginLeft: 8, flex: 1 }}>{selectedFileName || "No file selected"}</div>
+          </div>
+        </div>
+
         <Sidebar
           selectedFileName={selectedFileName}
           selectedFilePath={selectedFilePath}
@@ -635,7 +694,9 @@ export function App() {
         />
 
         <main>
-          <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+          <section>
+            <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+          </section>
         </main>
 
         <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} />

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions } from "electron";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
@@ -28,9 +28,13 @@ function getOpenWindows(): BrowserWindow[] {
 function createMainWindow(runtimeAppRoot: string): BrowserWindow {
   const preloadPath = path.resolve(__dirname, "..", "preload", "index.js");
 
+  const devIconPath = path.resolve(runtimeAppRoot, "build", "icon.png");
+  const icon = !app.isPackaged && fs.existsSync(devIconPath) ? devIconPath : undefined;
+
   const window = new BrowserWindow({
     width: 1200,
     height: 820,
+    ...(icon ? { icon } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -304,6 +308,127 @@ async function bootstrapMain(): Promise<void> {
   registerIpcHandlers();
 
   mainWindow = createMainWindow(runtime.appRoot);
+
+  // Build a simple application menu with an Edit menu containing a Color Picker
+  try {
+    const template: MenuItemConstructorOptions[] = [
+      {
+        label: "Edit",
+        submenu: [
+          { role: "undo" },
+          { role: "redo" },
+          { type: "separator" },
+          { role: "cut" },
+          { role: "copy" },
+          { role: "paste" },
+          { type: "separator" },
+          {
+            label: "Button color...",
+            click: () => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                // Execute a small script in the renderer to show a native color input
+                // This avoids IPC/listener issues and works cross-platform.
+                try {
+                  mainWindow.webContents.executeJavaScript(`(function(){
+                    try {
+                      if (document.getElementById('lt-color-overlay')) return;
+                      const previous = (getComputedStyle(document.documentElement).getPropertyValue('--button-bg') || '').trim() || '#0b2a5a';
+                      const overlay = document.createElement('div');
+                      overlay.id = 'lt-color-overlay';
+                      overlay.style.position = 'fixed';
+                      overlay.style.left = '0';
+                      overlay.style.top = '0';
+                      overlay.style.width = '100%';
+                      overlay.style.height = '100%';
+                      overlay.style.display = 'flex';
+                      overlay.style.alignItems = 'center';
+                      overlay.style.justifyContent = 'center';
+                      overlay.style.background = 'rgba(0,0,0,0.35)';
+                      overlay.style.zIndex = '999999';
+
+                      const box = document.createElement('div');
+                      box.style.background = getComputedStyle(document.documentElement).getPropertyValue('--panel') || '#072039';
+                      box.style.padding = '18px';
+                      box.style.borderRadius = '10px';
+                      box.style.boxShadow = '0 6px 20px rgba(0,0,0,0.5)';
+                      box.style.display = 'flex';
+                      box.style.flexDirection = 'column';
+                      box.style.gap = '12px';
+                      box.style.alignItems = 'center';
+
+                      const label = document.createElement('div');
+                      label.textContent = 'Pick button color';
+                      label.style.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#dbeafe';
+                      label.style.fontSize = '14px';
+
+                      const input = document.createElement('input');
+                      input.type = 'color';
+                      input.value = previous;
+                      input.style.width = '64px';
+                      input.style.height = '40px';
+                      input.style.border = 'none';
+                      input.style.cursor = 'pointer';
+
+                      const preview = document.createElement('div');
+                      preview.style.width = '120px';
+                      preview.style.height = '32px';
+                      preview.style.borderRadius = '6px';
+                      preview.style.background = previous;
+                      preview.style.border = '1px solid rgba(255,255,255,0.06)';
+
+                      const row = document.createElement('div');
+                      row.style.display = 'flex';
+                      row.style.gap = '12px';
+
+                      const applyBtn = document.createElement('button');
+                      applyBtn.textContent = 'Apply';
+                      applyBtn.style.padding = '8px 12px';
+                      applyBtn.style.cursor = 'pointer';
+
+                      const cancelBtn = document.createElement('button');
+                      cancelBtn.textContent = 'Cancel';
+                      cancelBtn.style.padding = '8px 12px';
+                      cancelBtn.style.cursor = 'pointer';
+
+                      input.addEventListener('input', function(){
+                        const val = input.value;
+                        preview.style.background = val;
+                        try { document.documentElement.style.setProperty('--button-bg', val); } catch {}
+                      });
+
+                      applyBtn.addEventListener('click', function(){
+                        try { const val = input.value; document.documentElement.style.setProperty('--button-bg', val); window.localStorage.setItem('lt:button-bg', val); } catch {};
+                        try { overlay.remove(); } catch {}
+                      });
+
+                      cancelBtn.addEventListener('click', function(){
+                        try { document.documentElement.style.setProperty('--button-bg', previous); } catch {}
+                        try { overlay.remove(); } catch {}
+                      });
+
+                      box.appendChild(label);
+                      const inner = document.createElement('div'); inner.style.display='flex'; inner.style.gap='12px'; inner.style.alignItems='center'; inner.appendChild(input); inner.appendChild(preview);
+                      box.appendChild(inner);
+                      row.appendChild(applyBtn); row.appendChild(cancelBtn);
+                      box.appendChild(row);
+                      overlay.appendChild(box);
+                      document.body.appendChild(overlay);
+                    } catch (e) { }
+                  })()`);
+                } catch {
+                  // ignore
+                }
+              }
+            },
+          },
+        ],
+      },
+    ];
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  } catch {
+    // best effort - do not crash if menu creation fails
+  }
 
   try {
     await ensurePackagedBackend(runtime);

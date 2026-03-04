@@ -27,6 +27,12 @@ const backendApi = {
 		ipcRenderer.on("backend:state", wrapped);
 		return () => ipcRenderer.removeListener("backend:state", wrapped);
 	},
+	// Menu-driven color picker event
+	onOpenColorPicker: (listener: () => void): Unsubscribe => {
+		const wrapped = (_event: Electron.IpcRendererEvent) => listener();
+		ipcRenderer.on("menu:open-color-picker", wrapped);
+		return () => ipcRenderer.removeListener("menu:open-color-picker", wrapped);
+	},
 };
 
 contextBridge.exposeInMainWorld("localTranscribeBackend", backendApi);

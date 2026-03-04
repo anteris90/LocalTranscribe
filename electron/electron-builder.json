@@ -3,7 +3,8 @@
   "productName": "LocalTranscribe",
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "directories": {
-    "output": "../dist/packages"
+    "output": "../dist/packages",
+    "buildResources": "../build"
   },
   "asar": true,
   "files": [
@@ -28,6 +29,7 @@
         ]
       }
     ],
+    "icon": "../build/icon.ico",
     "extraResources": []
   },
   "mac": {
@@ -57,5 +59,7 @@
         ]
       }
     ]
+    ,
+    "icon": "../build/icon.png"
   }
 }

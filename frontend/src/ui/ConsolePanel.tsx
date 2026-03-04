@@ -15,7 +15,7 @@ export default function ConsolePanel({ logsText, progressPercent, progressStage,
   return (
     <aside style={{ width: 260, display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="lt-panel">
-        <div style={{ fontFamily: "Menlo, monospace", color: "var(--muted)" }}>Status</div>
+        <div style={{ color: "var(--muted)" }}>Status</div>
         <div style={{ marginTop: 8 }}>
           <div>Progress: {progressPercent}%</div>
           <div>Stage: {progressStage}</div>
@@ -26,7 +26,7 @@ export default function ConsolePanel({ logsText, progressPercent, progressStage,
 
       <div className="lt-panel" style={{ flex: 1 }}>
         <label style={{ display: "block", marginBottom: 6 }}>Console</label>
-        <div style={{ whiteSpace: "pre-wrap", fontFamily: "Menlo, monospace", color: "var(--muted)", maxHeight: 360, overflowY: "auto" }}>{logsText || "No logs yet"}</div>
+        <div style={{ whiteSpace: "pre-wrap", color: "var(--muted)", maxHeight: 360, overflowY: "auto" }}>{logsText || "No logs yet"}</div>
       </div>
 
       <div className="lt-panel">

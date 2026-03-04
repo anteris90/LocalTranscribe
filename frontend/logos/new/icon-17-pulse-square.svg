@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <style>
+    .bg { fill: var(--accent, currentColor); opacity: 0.22; }
+    .frame { stroke: var(--border, currentColor); }
+    .frame-glow { stroke: var(--accent, currentColor); opacity: 0.5; }
+    .pulse-glow { stroke: var(--accent, currentColor); opacity: 0.22; }
+    .pulse { stroke: var(--text, currentColor); }
+    .pulse-accent { stroke: var(--accent, currentColor); opacity: 0.9; }
+  </style>
+
+  <rect x="48" y="48" width="416" height="416" rx="104" class="bg"/>
+  <rect x="48" y="48" width="416" height="416" rx="104" class="frame-glow" stroke-width="22"/>
+  <rect x="48" y="48" width="416" height="416" rx="104" class="frame" stroke-width="26"/>
+
+  <path d="M112 270h92l38-110 54 216 48-164 34 58h94" class="pulse-glow" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M112 270h92l38-110 54 216 48-164 34 58h94" class="pulse" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M112 270h92l38-110" class="pulse-accent" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

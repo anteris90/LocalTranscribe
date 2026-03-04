@@ -2,9 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import sharp from "sharp";
-import pngToIco from "png-to-ico";
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -15,12 +12,25 @@ const inputSvgPath = path.resolve(buildDir, "icon.svg");
 const outPngPath = path.resolve(buildDir, "icon.png");
 const outIcoPath = path.resolve(buildDir, "icon.ico");
 
+fs.mkdirSync(buildDir, { recursive: true });
+
+const havePrebuiltIcons = fs.existsSync(outPngPath) && fs.existsSync(outIcoPath);
+if (havePrebuiltIcons) {
+  console.log(
+    `[icon-gen] Using existing ${path.relative(repoRoot, outPngPath)} and ${path.relative(repoRoot, outIcoPath)}`,
+  );
+  process.exit(0);
+}
+
 if (!fs.existsSync(inputSvgPath)) {
   console.error(`[icon-gen] Missing input SVG: ${inputSvgPath}`);
   process.exit(1);
 }
 
-fs.mkdirSync(buildDir, { recursive: true });
+const [{ default: sharp }, { default: pngToIco }] = await Promise.all([
+  import("sharp"),
+  import("png-to-ico"),
+]);
 
 const svg = fs.readFileSync(inputSvgPath);
 

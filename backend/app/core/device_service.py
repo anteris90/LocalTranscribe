@@ -59,25 +59,30 @@ class DeviceService:
             return DeviceProbeResult(available=False, reason="cuda_not_supported_on_platform", details={"os": os_name})
 
         try:
-            import torch
+            import ctranslate2
         except Exception as exc:  # pragma: no cover - import failure path
-            return DeviceProbeResult(available=False, reason="torch_import_failed", details={"error": str(exc)})
+            return DeviceProbeResult(available=False, reason="ctranslate2_import_failed", details={"error": str(exc)})
 
         try:
-            if not torch.cuda.is_available():
+            get_device_count = getattr(ctranslate2, "get_cuda_device_count", None)
+            if get_device_count is None:
+                return DeviceProbeResult(
+                    available=False,
+                    reason="cuda_api_missing",
+                    details={},
+                )
+
+            device_count = int(get_device_count())
+            if device_count <= 0:
                 return DeviceProbeResult(
                     available=False,
                     reason="cuda_unavailable",
-                    details={"torch_cuda_available": False},
+                    details={"device_count": device_count},
                 )
-
-            device_name = torch.cuda.get_device_name(0)
-            tensor = torch.zeros(1, device="cuda")
-            _ = float(tensor.item())
             return DeviceProbeResult(
                 available=True,
                 reason=None,
-                details={"device_name": device_name},
+                details={"device_count": device_count},
             )
         except Exception as exc:
             return DeviceProbeResult(
@@ -87,50 +92,15 @@ class DeviceService:
             )
 
     def _probe_mps(self, os_name: str) -> DeviceProbeResult:
-        if os_name != "darwin":
-            return DeviceProbeResult(available=False, reason="mps_not_supported_on_platform", details={"os": os_name})
-
-        try:
-            import torch
-        except Exception as exc:  # pragma: no cover - import failure path
-            return DeviceProbeResult(available=False, reason="torch_import_failed", details={"error": str(exc)})
-
-        try:
-            mps_backend = getattr(torch.backends, "mps", None)
-            if mps_backend is None:
-                return DeviceProbeResult(
-                    available=False,
-                    reason="mps_backend_missing",
-                    details={},
-                )
-
-            if not torch.backends.mps.is_available():
-                return DeviceProbeResult(
-                    available=False,
-                    reason="mps_unavailable",
-                    details={"mps_built": bool(torch.backends.mps.is_built())},
-                )
-
-            tensor = torch.zeros(1, device="mps")
-            _ = float(tensor.cpu().item())
-            return DeviceProbeResult(
-                available=True,
-                reason=None,
-                details={"mps_built": bool(torch.backends.mps.is_built())},
-            )
-        except Exception as exc:
-            return DeviceProbeResult(
-                available=False,
-                reason="mps_probe_failed",
-                details={"error": str(exc)},
-            )
+        return DeviceProbeResult(
+            available=False,
+            reason="mps_not_supported",
+            details={"os": os_name},
+        )
 
     def _probe_cpu(self) -> DeviceProbeResult:
         try:
-            import torch
-
-            tensor = torch.zeros(1, device="cpu")
-            _ = float(tensor.item())
+            import ctranslate2  # noqa: F401
             return DeviceProbeResult(available=True, reason=None, details={})
         except Exception as exc:
             return DeviceProbeResult(

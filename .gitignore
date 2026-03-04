@@ -13,6 +13,8 @@ bin/
 build/**
 !build/entitlements.mac.plist
 !build/icon.svg
+!build/icon.png
+!build/icon.ico
 
 backend/build/
 

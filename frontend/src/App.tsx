@@ -639,5 +639,6 @@ export function App() {
         <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} />
       </div>
     </div>
+    </div>
   );
 }

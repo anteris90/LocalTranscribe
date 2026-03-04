@@ -48,3 +48,25 @@ body.lt-root {
 .lt-transcript { width:100%; min-height:360px; max-height:420px; resize:vertical; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:10px }
 
 .lt-logs { width:100%; min-height:160px; max-height:260px; resize:vertical; background:#071018; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:10px }
+
+/* Buttons and inputs */
+button { background: var(--button-bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; cursor: pointer }
+button:disabled { opacity: 0.5; cursor: not-allowed }
+input[type="file"], select { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 6px }
+
+/* Responsive layout */
+@media (max-width: 960px) {
+  .lt-container { padding: 12px }
+  .lt-topbar h1 { font-size: 18px }
+  .lt-playback { height: auto }
+  .lt-transcript { min-height: 240px }
+}
+
+@media (max-width: 720px) {
+  .lt-container { padding: 8px }
+  /* stack into single column on small screens */
+  .lt-container > .lt-topbar + div { display: block }
+  .lt-container main, .lt-container aside { width: 100% }
+  .lt-container .lt-panel { width: 100% }
+}
+

@@ -1,12 +1,12 @@
 :root {
   --bg: #0b0f12;
-  --panel: #071218;
-  --muted: #6b808b;
-  --text: #cfe8e0;
-  --accent: #00d27a;
+  --panel: #07171a;
+  --muted: #7a8b8f;
+  --text: #d6efe8;
+  --accent: #18d18a;
   --surface: #061319;
-  --border: #0f2630;
-  --button-bg: #102226;
+  --border: #0e2b31;
+  --button-bg: #0f2b28;
 }
 
 @media (prefers-color-scheme: light) {
@@ -30,7 +30,7 @@
 }
 
 .lt-container {
-  padding: 16px;
+  padding: 18px 20px;
 }
 
 .lt-topbar {
@@ -45,7 +45,7 @@
 
 .lt-grid { display:grid; grid-template-columns: 1fr 220px 180px 180px; gap:12px; align-items:end }
 
-.lt-panel { background: var(--panel); border: 1px solid var(--border); padding:10px; border-radius:6px }
+.lt-panel { background: var(--panel); border: 1px solid var(--border); padding:14px; border-radius:8px; box-shadow: 0 1px 0 rgba(0,0,0,0.25) inset }
 
 .lt-playback { display:block; background: var(--surface); border:1px solid var(--border); padding:12px; border-radius:8px; }
 .lt-wave { background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.02)); height:120px; border-radius:6px; overflow:hidden }
@@ -57,7 +57,7 @@
 .lt-logs { width:100%; min-height:160px; max-height:260px; resize:vertical; background:#071018; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:10px }
 
 /* Buttons and inputs */
-button { background: var(--button-bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; cursor: pointer }
+button { background: var(--button-bg); color: var(--text); border: 1px solid rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px; cursor: pointer }
 button:disabled { opacity: 0.5; cursor: not-allowed }
 input[type="file"], select { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 6px }
 
@@ -65,8 +65,7 @@ input[type="file"], select { background: transparent; color: var(--text); border
 @media (max-width: 960px) {
   .lt-container { padding: 12px }
   .lt-topbar h1 { font-size: 18px }
-  .lt-playback { height: auto }
-  .lt-transcript { min-height: 240px }
+  .lt-transcript { min-height: 260px }
 }
 
 @media (max-width: 720px) {

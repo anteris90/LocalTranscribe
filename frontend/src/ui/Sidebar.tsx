@@ -7,6 +7,8 @@ type Props = {
   selectedFilePath: string;
   selectedModel: ModelOption;
   selectedDevice: DeviceOption;
+  onModelChange: (v: ModelOption) => void;
+  onDeviceChange: (v: DeviceOption) => void;
   onPickFile: ChangeEventHandler<HTMLInputElement>;
   onStart: () => void;
   startDisabled: boolean;
@@ -46,7 +48,7 @@ export default function Sidebar(props: Props) {
 
       <div className="lt-panel">
         <label style={{ display: "block", marginBottom: 6 }}>Model</label>
-        <select value={selectedModel} style={{ width: "100%", height: 32 }} onChange={(e) => { /* keep control in App */ }}>
+        <select value={selectedModel} style={{ width: "100%", height: 32 }} onChange={(e) => props.onModelChange(e.target.value as ModelOption)}>
           <option value="small">small</option>
           <option value="medium">medium</option>
           <option value="large-v3">large-v3</option>
@@ -55,7 +57,7 @@ export default function Sidebar(props: Props) {
 
       <div className="lt-panel">
         <label style={{ display: "block", marginBottom: 6 }}>Device</label>
-        <select value={selectedDevice} style={{ width: "100%", height: 32 }} onChange={(e) => { /* keep control in App */ }}>
+        <select value={selectedDevice} style={{ width: "100%", height: 32 }} onChange={(e) => props.onDeviceChange(e.target.value as DeviceOption)}>
           <option value="auto">Auto</option>
           <option value="cpu">CPU</option>
           <option value="gpu">GPU</option>

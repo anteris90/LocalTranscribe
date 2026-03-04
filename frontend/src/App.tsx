@@ -620,6 +620,8 @@ export function App() {
           selectedFilePath={selectedFilePath}
           selectedModel={selectedModel}
           selectedDevice={selectedDevice}
+          onModelChange={(m) => setSelectedModel(m)}
+          onDeviceChange={(d) => setSelectedDevice(d)}
           onPickFile={onPickFile}
           onStart={onStart}
           startDisabled={startDisabled}

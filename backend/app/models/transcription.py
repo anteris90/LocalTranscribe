@@ -41,9 +41,11 @@ class TranscriptionResult:
     effective_device: str
     effective_compute_type: str
     attempts: list[AttemptResult]
+    detected_language: str | None = None
+    language_probability: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "text": self.text,
             "segments": [segment.to_dict() for segment in self.segments],
             "effective_device": self.effective_device,
@@ -53,3 +55,10 @@ class TranscriptionResult:
                 for attempt in self.attempts
             ],
         }
+
+        if self.detected_language:
+            payload["detected_language"] = self.detected_language
+        if self.language_probability is not None:
+            payload["language_probability"] = self.language_probability
+
+        return payload

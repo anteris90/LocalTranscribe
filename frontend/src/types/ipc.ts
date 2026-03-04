@@ -64,6 +64,8 @@ export type JobStateNotification = {
     segments?: Array<{ start: number; end: number; text: string }>;
     effective_device?: string;
     effective_compute_type?: string;
+    detected_language?: string;
+    language_probability?: number;
   };
   error?: {
     code: number;

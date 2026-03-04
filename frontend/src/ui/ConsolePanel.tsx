@@ -9,9 +9,10 @@ type Props = {
   downgradeMessage: string;
   effectiveDevice: string | null;
   effectiveComputeType: string | null;
+  detectedLanguage: string | null;
 };
 
-export default function ConsolePanel({ logsText, progressPercent, progressStage, infoMessage, errorMessage, downgradeMessage, effectiveDevice, effectiveComputeType }: Props) {
+export default function ConsolePanel({ logsText, progressPercent, progressStage, infoMessage, errorMessage, downgradeMessage, effectiveDevice, effectiveComputeType, detectedLanguage }: Props) {
   return (
     <aside style={{ width: 260, display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="lt-panel">
@@ -21,6 +22,7 @@ export default function ConsolePanel({ logsText, progressPercent, progressStage,
           <div>Stage: {progressStage}</div>
           {effectiveDevice ? <div>Device: {effectiveDevice}</div> : null}
           {effectiveComputeType ? <div>Compute: {effectiveComputeType}</div> : null}
+          {detectedLanguage ? <div>Language: {detectedLanguage}</div> : null}
         </div>
       </div>
 

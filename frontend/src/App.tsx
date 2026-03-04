@@ -40,7 +40,8 @@ export function App() {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<ModelOption>("medium");
   const [selectedDevice, setSelectedDevice] = useState<DeviceOption>("auto");
-  const [language] = useState<string>("en");
+  const [language] = useState<string>("auto");
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<UiJobStatus>("idle");
@@ -226,6 +227,27 @@ export function App() {
         return;
       }
 
+      if (eventType === "transcription.language_detected") {
+        const job = (payload as any).job_id;
+        if (!jobId || (typeof job === "string" && job !== jobId)) {
+          return;
+        }
+
+        const lang = (payload as any).language;
+        const prob = (payload as any).probability;
+        if (typeof lang === "string" && lang.trim().length > 0) {
+          setDetectedLanguage(lang);
+          appendLog(`[language] Detected language: ${lang}${typeof prob === "number" ? ` (p=${prob.toFixed(2)})` : ""}`);
+          try {
+            // Helpful during dev debugging (DevTools console)
+            console.info("[LocalTranscribe] language_detected", { jobId: job, language: lang, probability: prob });
+          } catch {
+            // ignore
+          }
+        }
+        return;
+      }
+
       if (eventType === "transcription.downgrade") {
         const event = payload as unknown as DowngradeNotification;
         if (!jobId || (event.job_id && event.job_id !== jobId)) {
@@ -276,6 +298,9 @@ export function App() {
           }
           setEffectiveDevice(event.result?.effective_device ?? null);
           setEffectiveComputeType(event.result?.effective_compute_type ?? null);
+          if (typeof event.result?.detected_language === "string" && event.result.detected_language.trim().length > 0) {
+            setDetectedLanguage(event.result.detected_language);
+          }
           setInfoMessage("Transcription completed");
           return;
         }
@@ -285,6 +310,56 @@ export function App() {
           setJobStatus("failed");
           setProgressStage("failed");
           setErrorMessage(event.error?.message ?? "Transcription failed");
+
+          const code = event.error?.code;
+          const msg = event.error?.message;
+          if (typeof code === "number" || (typeof msg === "string" && msg.trim().length > 0)) {
+            appendLog(`[error] ${typeof code === "number" ? code : "unknown"}: ${typeof msg === "string" ? msg : "Transcription failed"}`);
+          }
+          const data = event.error?.data;
+          if (data && typeof data === "object") {
+            try {
+              appendLog(`[error] data: ${JSON.stringify(data)}`);
+            } catch {
+              appendLog("[error] data: <unserializable>");
+            }
+
+            try {
+              const attempts = (data as any).attempts;
+              if (Array.isArray(attempts)) {
+                for (const attempt of attempts) {
+                  const dev = typeof attempt?.device === "string" ? attempt.device : "unknown";
+                  const ct = typeof attempt?.compute_type === "string" ? attempt.compute_type : "unknown";
+                  const acode = typeof attempt?.code === "number" ? attempt.code : null;
+                  const amsg = typeof attempt?.message === "string" ? attempt.message : "";
+                  const aerr = typeof attempt?.data?.error === "string" ? attempt.data.error : "";
+                  const atype = typeof attempt?.data?.type === "string" ? attempt.data.type : (typeof attempt?.type === "string" ? attempt.type : "");
+
+                  const base = `[attempt] ${dev}/${ct}${acode !== null ? ` code=${acode}` : ""}${amsg ? ` ${amsg}` : ""}`;
+                  appendLog(atype || aerr ? `${base} :: ${[atype, aerr].filter(Boolean).join(": ")}` : base);
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          try {
+            // Helpful during dev debugging (DevTools console)
+            console.error("[LocalTranscribe] transcription_failed", {
+              jobId: event.job_id,
+              error: event.error ?? null,
+            });
+
+            const attempts = (event.error as any)?.data?.attempts;
+            if (Array.isArray(attempts)) {
+              for (const attempt of attempts) {
+                console.error("[LocalTranscribe] attempt", attempt);
+              }
+            }
+          } catch {
+            // ignore
+          }
           return;
         }
       }
@@ -394,6 +469,7 @@ export function App() {
     setDowngradeMessage("");
     setTranscriptText("");
     setTranscriptSegments([]);
+    setDetectedLanguage(null);
     setEffectiveDevice(null);
     setEffectiveComputeType(null);
     setProgressPercent(0);
@@ -492,7 +568,7 @@ export function App() {
         requestedDevice: selectedDevice,
         effectiveDevice,
         effectiveComputeType,
-        language,
+        language: detectedLanguage ?? language,
         sourceFile: selectedFileName || selectedFilePath,
         completedAt: new Date().toISOString(),
       },
@@ -699,7 +775,7 @@ export function App() {
           </section>
         </main>
 
-        <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} />
+        <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} detectedLanguage={detectedLanguage} />
       </div>
     </div>
     </div>

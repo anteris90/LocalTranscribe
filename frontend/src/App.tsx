@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "react";
+import "./ui/theme.css";
+import Playback from "./ui/Playback";
 
 import {
   checkResourceUpdates,
@@ -46,6 +48,7 @@ export function App() {
   const [logsText, setLogsText] = useState<string>("");
   const [transcriptSegments, setTranscriptSegments] = useState<ExportSegment[]>([]);
   const [isDownloadingResources, setIsDownloadingResources] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [effectiveDevice, setEffectiveDevice] = useState<string | null>(null);
   const [effectiveComputeType, setEffectiveComputeType] = useState<string | null>(null);
   const [modelUpdateAvailable, setModelUpdateAvailable] = useState<boolean>(false);
@@ -433,6 +436,10 @@ export function App() {
     }
   };
 
+  const onTogglePlay = () => {
+    setIsPlaying((s) => !s);
+  };
+
   const onExport = async (type: ExportType) => {
     if (!hasTranscript) {
       return;
@@ -583,8 +590,11 @@ export function App() {
   };
 
   return (
-    <div style={{ padding: "16px", fontFamily: "Segoe UI, sans-serif", color: "#e5e7eb", backgroundColor: "#111827", minHeight: "100vh" }}>
-      <h1 style={{ marginTop: 0 }}>LocalTranscribe</h1>
+    <div className="lt-root" style={{ minHeight: "100vh" }}>
+      <div className="lt-container">
+        <div className="lt-topbar">
+          <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+        </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 180px 180px", gap: "12px", alignItems: "end" }}>
         <div>
@@ -667,6 +677,15 @@ export function App() {
       </div>
 
       <div style={{ marginTop: "14px" }}>
+        <Playback
+          fileName={selectedFileName || selectedFilePath}
+          isJobActive={isJobActive}
+          progressPercent={progressPercent}
+          isDownloadingResources={isDownloadingResources}
+          isPlaying={isPlaying}
+          onTogglePlay={onTogglePlay}
+        />
+
         <label htmlFor="transcriptText" style={{ display: "block", marginBottom: "4px" }}>
           Transcript
         </label>

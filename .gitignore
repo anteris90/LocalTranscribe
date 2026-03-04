@@ -12,3 +12,35 @@ dist/
 bin/
 build/
 
+# Python
+env/
+*.egg-info/
+
+# Node / frontend / electron
+out/
+package-lock.json
+yarn.lock
+
+# Electron/packaged artifacts
+dist/packages/
+build/windows/
+build/*/backend/
+backend/dist/
+*.exe
+*.msi
+*.pkg
+
+# Models / large data
+models/
+models/**
+
+# Temporary / OS
+*.log
+*.tmp
+*.cache
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+

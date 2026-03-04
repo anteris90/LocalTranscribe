@@ -10,7 +10,7 @@ Local desktop transcription app (Electron + Python backend) with model/ffmpeg on
 
 ### macOS/Linux
 
-`./scripts/bootstrap.sh`
+`./scripts/bootstrap.sh` 
 
 ## Build commands
 

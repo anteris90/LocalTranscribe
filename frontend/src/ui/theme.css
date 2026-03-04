@@ -1,12 +1,12 @@
 :root {
-  --bg: #0b0f12;
-  --panel: #07171a;
-  --muted: #7a8b8f;
-  --text: #d6efe8;
-  --accent: #1e40af; /* navy blue */
-  --surface: #061319;
-  --border: #0e2b31;
-  --button-bg: #0b274f; /* darker navy button background */
+  --bg: #031027; /* deep navy background */
+  --panel: #072039; /* panel slightly lighter navy */
+  --muted: #8aa0c6; /* muted bluish text */
+  --text: #dbeafe; /* light text */
+  --accent: #1e40af; /* primary navy blue */
+  --surface: #041626; /* surface panels */
+  --border: #12314f; /* navy border */
+  --button-bg: #0b2a5a; /* darker navy button background */
 }
 
 @media (prefers-color-scheme: light) {
@@ -54,7 +54,7 @@
 
 .lt-transcript { width:100%; min-height:360px; max-height:420px; resize:vertical; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:10px }
 
-.lt-logs { width:100%; min-height:160px; max-height:260px; resize:vertical; background:#071018; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:10px }
+.lt-logs { width:100%; min-height:160px; max-height:260px; resize:vertical; background:var(--surface); color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:10px }
 
 /* Buttons and inputs */
 button { background: var(--button-bg); color: var(--text); border: 1px solid rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px; cursor: pointer }

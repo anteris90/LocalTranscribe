@@ -49,9 +49,15 @@ export function resolveRuntimePaths(): RuntimePaths {
     const appRoot = resourcesPath;
     const runtimeRoot = path.resolve(app.getPath("userData"), "runtime");
     const modelsDir = path.resolve(runtimeRoot, "models");
-    const ffmpegDir = path.resolve(runtimeRoot, "ffmpeg");
+    const ffmpegDir =
+      process.platform === "win32"
+        ? path.resolve(runtimeRoot, "ffmpeg")
+        : path.resolve(resourcesPath, "ffmpeg");
     const dataDir = path.resolve(runtimeRoot, "data");
-    const backendDir = path.resolve(runtimeRoot, "backend");
+    const backendDir =
+      process.platform === "win32"
+        ? path.resolve(runtimeRoot, "backend")
+        : path.resolve(resourcesPath, "backend");
     const backendExecutable =
       process.platform === "win32"
         ? path.resolve(backendDir, "backend.exe")
@@ -66,7 +72,10 @@ export function resolveRuntimePaths(): RuntimePaths {
 
     fs.mkdirSync(runtimeRoot, { recursive: true });
     fs.mkdirSync(modelsDir, { recursive: true });
-    fs.mkdirSync(ffmpegDir, { recursive: true });
+    if (process.platform === "win32") {
+      fs.mkdirSync(ffmpegDir, { recursive: true });
+      fs.mkdirSync(backendDir, { recursive: true });
+    }
     fs.mkdirSync(dataDir, { recursive: true });
 
     return {

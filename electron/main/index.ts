@@ -247,7 +247,7 @@ async function ensurePackagedBackend(runtime: RuntimePaths): Promise<void> {
 
   const backendUrl = runtime.backendDownloadUrl;
   if (!backendUrl) {
-    throw new Error("Backend runtime missing. Configure LOCALTRANSCRIBE_BACKEND_URL to a downloadable backend executable URL.");
+    throw new Error(`Backend runtime missing at ${runtime.backendExecutable}. Ensure the packaged app includes Resources/backend/backend.`);
   }
 
   fs.mkdirSync(path.dirname(runtime.backendExecutable), { recursive: true });

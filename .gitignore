@@ -4,6 +4,7 @@ electron/node_modules/
 frontend/dist/
 electron/dist/
 backend/.venv/
+backend/.venv-macbuild/
 __pycache__/
 *.pyc
 .DS_Store

@@ -45,6 +45,25 @@ Installer output:
 
 - `dist/packages/LocalTranscribe-<version>-win-x64.exe`
 
+## macOS Release Build (arm64 DMG)
+
+The macOS DMG bundles backend + ffmpeg from local paths. Prepare them first:
+
+- `npm run prepare:mac-runtime`
+- `npm run build:backend:onefile:mac`
+
+Then package macOS:
+
+- `npm --workspace electron run dist`
+
+Or run the full local mac flow in one command:
+
+- `npm run release:mac`
+
+Expected output:
+
+- `dist/packages/LocalTranscribe-<version>-mac-arm64.dmg`
+
 ## Backend Bootstrap Artifact (for thin installer)
 
 The thin installer expects a downloadable backend artifact named:

@@ -1,6 +1,6 @@
 {
   "name": "localtranscribe-electron",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "node scripts/generate-icons.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pack:dir": "node scripts/generate-icons.mjs && electron-builder --dir --config electron-builder.json",
-    "dist": "node scripts/generate-icons.mjs && electron-builder --config electron-builder.json"
+    "dist": "node scripts/verify-release-inputs.mjs && node scripts/generate-icons.mjs && electron-builder --config electron-builder.json"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

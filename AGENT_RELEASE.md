@@ -108,7 +108,10 @@ From `main`:
 
 2. Create the GitHub release:
 
-- `gh release create vX.Y.Z --title "vX.Y.Z" --notes "<release notes>"`
+- `gh release create vX.Y.Z --title "vX.Y.Z" --notes-file docs/release-notes-template.md`
+
+Release notes template:
+- [docs/release-notes-template.md](docs/release-notes-template.md)
 
 ## Step 5 — Upload Release Assets (Installers + Runtime Artifacts)
 

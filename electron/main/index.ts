@@ -99,6 +99,52 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(
+    "dialog:openFile",
+    async (
+      event,
+      payload: { title?: string; extensions?: string[] } | undefined
+    ): Promise<{ canceled: boolean; filePath?: string; fileName?: string }> => {
+      const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? mainWindow ?? undefined;
+      const title = typeof payload?.title === "string" && payload.title.trim().length > 0
+        ? payload.title.trim()
+        : "Select Audio/Video";
+
+      const defaultExtensions = ["mp4", "mkv", "webm", "wav", "mp3", "m4a", "aac", "flac", "ogg"];
+      const extensions = Array.isArray(payload?.extensions)
+        ? payload!.extensions.filter((ext) => typeof ext === "string" && ext.trim().length > 0).map((ext) => ext.replace(/^\./, "").toLowerCase())
+        : defaultExtensions;
+
+      const openOptions: Electron.OpenDialogOptions = {
+        title,
+        properties: ["openFile"],
+        filters: [
+          { name: "Media", extensions: extensions.length > 0 ? extensions : defaultExtensions },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      };
+
+      const result = ownerWindow
+        ? await dialog.showOpenDialog(ownerWindow, openOptions)
+        : await dialog.showOpenDialog(openOptions);
+
+      if (result.canceled || !Array.isArray(result.filePaths) || result.filePaths.length === 0) {
+        return { canceled: true };
+      }
+
+      const selected = path.resolve(result.filePaths[0]);
+      if (!path.isAbsolute(selected)) {
+        return { canceled: true };
+      }
+
+      return {
+        canceled: false,
+        filePath: selected,
+        fileName: path.basename(selected),
+      };
+    }
+  );
+
+  ipcMain.handle(
     "export:saveFile",
     async (
       event,

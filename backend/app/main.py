@@ -129,6 +129,13 @@ def main() -> int:
                 protocol.send_result(request.request_id, job_service.get_active_job())
                 continue
 
+            if request.method == "cancel_job":
+                job_id = request.params.get("job_id")
+                if job_id is not None and not isinstance(job_id, str):
+                    raise BackendError(code=1311, message="Invalid job_id", data={"field": "job_id"})
+                protocol.send_result(request.request_id, job_service.cancel_job(job_id if isinstance(job_id, str) and job_id.strip() else None))
+                continue
+
             if request.method == "check_resource_updates":
                 model_name = request.params.get("model")
                 if model_name is not None and not isinstance(model_name, str):

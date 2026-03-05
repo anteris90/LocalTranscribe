@@ -10,6 +10,8 @@ type Unsubscribe = () => void;
 const backendApi = {
 	request: (payload: BackendRequestPayload): Promise<Record<string, unknown>> =>
 		ipcRenderer.invoke("backend:request", payload),
+	openFile: (payload?: { title?: string; extensions?: string[] }): Promise<{ canceled: boolean; filePath?: string; fileName?: string }> =>
+		ipcRenderer.invoke("dialog:openFile", payload ?? {}),
 	saveFile: (payload: { suggestedName: string; extension: "txt" | "srt" | "json"; content: string }): Promise<{ canceled: boolean; savedPath?: string }> =>
 		ipcRenderer.invoke("export:saveFile", payload),
 	onNotification: (listener: (payload: Record<string, unknown>) => void): Unsubscribe => {

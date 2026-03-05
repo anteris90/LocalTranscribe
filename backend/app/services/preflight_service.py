@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -27,6 +28,7 @@ class PreflightService:
     ) -> Path:
         ffmpeg_path = self._resolve_ffmpeg_path()
         if ffmpeg_path.exists() and ffmpeg_path.is_file() and not force_download:
+            self._inject_ffmpeg_env(ffmpeg_path)
             return ffmpeg_path
 
         if not allow_download:
@@ -48,8 +50,22 @@ class PreflightService:
                 message="FFmpeg download completed but binary is still missing",
                 data={"expected_path": str(ffmpeg_path)},
             )
-
+        self._inject_ffmpeg_env(ffmpeg_path)
         return ffmpeg_path
+
+    def _inject_ffmpeg_env(self, ffmpeg_path: Path) -> None:
+        ffmpeg_dir = str(ffmpeg_path.parent)
+        current_path = os.environ.get("PATH", "")
+        parts = [p for p in current_path.split(os.pathsep) if p]
+        if ffmpeg_dir not in parts:
+            os.environ["PATH"] = ffmpeg_dir + (os.pathsep + current_path if current_path else "")
+
+        os.environ.setdefault("FFMPEG_BINARY", str(ffmpeg_path))
+
+        ffprobe_name = "ffprobe.exe" if platform.system().lower() == "windows" else "ffprobe"
+        ffprobe_path = (ffmpeg_path.parent / ffprobe_name).resolve(strict=False)
+        if ffprobe_path.exists() and ffprobe_path.is_file():
+            os.environ.setdefault("FFPROBE_BINARY", str(ffprobe_path))
 
     def check_ffmpeg_update(self) -> dict[str, Any]:
         ffmpeg_path = self._resolve_ffmpeg_path()

@@ -173,6 +173,66 @@ function Ensure-ValidAppPackage {
   return $ExecutablePath
 }
 
+function Get-NewestWriteTime {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Paths
+  )
+
+  $items = @()
+  foreach ($p in $Paths) {
+    if (Test-Path $p) {
+      $items += Get-ChildItem -Path $p -Recurse -File -ErrorAction SilentlyContinue
+    }
+  }
+
+  if (-not $items -or $items.Count -eq 0) {
+    return [datetime]::MinValue
+  }
+
+  return ($items | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+}
+
+function Ensure-BackendArtifact {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$BackendArtifactPath,
+    [switch]$BuildIfMissing
+  )
+
+  $backendExists = Test-Path $BackendArtifactPath
+  $backendWrite = if ($backendExists) { (Get-Item $BackendArtifactPath).LastWriteTime } else { [datetime]::MinValue }
+
+  $newestBackendSource = Get-NewestWriteTime -Paths @(
+    "backend\\app",
+    "backend\\pyproject.toml",
+    "backend\\requirements.txt",
+    "scripts\\build-backend-onefile.ps1"
+  )
+
+  $needsRebuild = (-not $backendExists) -or ($newestBackendSource -gt $backendWrite)
+  if (-not $needsRebuild) {
+    return
+  }
+
+  if (-not $BuildIfMissing.IsPresent) {
+    if (-not $backendExists) {
+      throw "Backend artifact not found at $BackendArtifactPath. Run scripts/build-backend-onefile.ps1 or pass -BuildBackendIfMissing"
+    }
+    throw "Backend artifact is stale ($backendWrite) vs source ($newestBackendSource). Rebuild it (npm run build:backend:onefile) or pass -BuildBackendIfMissing"
+  }
+
+  Write-Host "Backend artifact missing or stale; rebuilding onefile backend..."
+  & "$PSScriptRoot/build-backend-onefile.ps1"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build backend onefile artifact (exit code $LASTEXITCODE)"
+  }
+
+  if (-not (Test-Path $BackendArtifactPath)) {
+    throw "Backend artifact not found at $BackendArtifactPath after rebuild"
+  }
+}
+
 $AppExe = Ensure-ValidAppPackage -ExecutablePath $AppExe
 
 if (-not (Test-Path $AppExe)) {
@@ -181,13 +241,7 @@ if (-not (Test-Path $AppExe)) {
 
 Cleanup-OldFallbackPackages -Keep 3
 
-if (-not (Test-Path $BackendArtifact)) {
-  if ($BuildBackendIfMissing.IsPresent) {
-    & "$PSScriptRoot/build-backend-onefile.ps1"
-  } else {
-    throw "Backend artifact not found at $BackendArtifact. Run scripts/build-backend-onefile.ps1 or pass -BuildBackendIfMissing"
-  }
-}
+Ensure-BackendArtifact -BackendArtifactPath $BackendArtifact -BuildIfMissing:$BuildBackendIfMissing.IsPresent
 
 $runtimeRoot = Join-Path $env:APPDATA "localtranscribe-electron\runtime"
 if ($ResetRuntime.IsPresent -and (Test-Path $runtimeRoot)) {

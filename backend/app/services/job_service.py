@@ -24,6 +24,7 @@ class JobRecord:
     completed_at: float | None = None
     result: TranscriptionResult | None = None
     error: dict[str, Any] | None = None
+    cancel_event: threading.Event = field(default_factory=threading.Event)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,6 +85,23 @@ class JobService:
                 return {"job": None}
             return {"job": self._active_job.to_dict()}
 
+    def cancel_job(self, job_id: str | None = None) -> dict[str, Any]:
+        with self._lock:
+            job = self._active_job
+            if job is None or job.status not in {"queued", "running"}:
+                return {"status": "no_active_job"}
+
+            if job_id is not None and job.job_id != job_id:
+                raise BackendError(
+                    code=3003,
+                    message="Job not active",
+                    data={"requested_job_id": job_id, "active_job_id": job.job_id},
+                )
+
+            job.cancel_event.set()
+
+        return {"status": "cancel_requested", "job_id": job.job_id}
+
     def _run_job(self, job_id: str) -> None:
         with self._lock:
             job = self._active_job
@@ -107,6 +125,7 @@ class JobService:
                     event_type,
                     {"job_id": job_id, **payload},
                 ),
+                cancel_event=job.cancel_event,
             )
 
             with self._lock:

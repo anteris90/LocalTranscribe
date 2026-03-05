@@ -20,6 +20,23 @@ class JsonRpcRequest:
 
 class JsonRpcProtocol:
     def __init__(self, input_stream: TextIO | None = None, output_stream: TextIO | None = None) -> None:
+        if input_stream is None:
+            try:
+                # On Windows, the default stdin encoding may be a legacy code page.
+                # Our Electron bridge writes UTF-8 JSON over stdin, so force UTF-8
+                # here to avoid mojibake in file paths.
+                sys.stdin.reconfigure(encoding="utf-8", errors="strict")
+            except Exception:
+                pass
+
+        if output_stream is None:
+            try:
+                # We mostly output ASCII-safe JSON (ensure_ascii=True), but keep
+                # stdout in UTF-8 to reduce surprises for diagnostics.
+                sys.stdout.reconfigure(encoding="utf-8", errors="strict")
+            except Exception:
+                pass
+
         self._input = input_stream if input_stream is not None else sys.stdin
         self._output = output_stream if output_stream is not None else sys.stdout
         self._write_lock = threading.Lock()

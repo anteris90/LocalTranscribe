@@ -7,10 +7,15 @@ type Props = {
   selectedFilePath: string;
   selectedModel: ModelOption;
   selectedDevice: DeviceOption;
+  language: string;
+  isJobActive: boolean;
+  isCancelling: boolean;
   onModelChange: (v: ModelOption) => void;
   onDeviceChange: (v: DeviceOption) => void;
+  onLanguageChange: (v: string) => void;
   onPickFile: ChangeEventHandler<HTMLInputElement>;
   onStart: () => void;
+  onCancel: () => void;
   startDisabled: boolean;
   onCheckUpdates: () => void;
   onApplyUpdates: () => void;
@@ -27,7 +32,11 @@ export default function Sidebar(props: Props) {
     onPickFile,
     selectedModel,
     selectedDevice,
+    language,
+    isJobActive,
+    isCancelling,
     onStart,
+    onCancel,
     startDisabled,
     onCheckUpdates,
     onApplyUpdates,
@@ -60,9 +69,38 @@ export default function Sidebar(props: Props) {
         </select>
       </div>
 
+      <div className="lt-panel">
+        <label style={{ display: "block", marginBottom: 6 }}>Language</label>
+        <select value={language} style={{ width: "100%", height: 32 }} onChange={(e) => props.onLanguageChange(e.target.value)}>
+          <option value="auto">Auto (detect)</option>
+          <option value="en">English (en)</option>
+          <option value="es">Spanish (es)</option>
+          <option value="fr">French (fr)</option>
+          <option value="de">German (de)</option>
+          <option value="it">Italian (it)</option>
+          <option value="pt">Portuguese (pt)</option>
+          <option value="ru">Russian (ru)</option>
+          <option value="zh">Chinese (zh)</option>
+          <option value="ko">Korean (ko)</option>
+          <option value="ar">Arabic (ar)</option>
+          <option value="hi">Hindi (hi)</option>
+          <option value="hu">Hungarian (hu)</option>
+          <option value="ja">Japanese (ja)</option>
+          <option value="pl">Polish (pl)</option>
+          <option value="tr">Turkish (tr)</option>
+          <option value="nl">Dutch (nl)</option>
+        </select>
+      </div>
+
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" className="lt-btn" onClick={onStart} disabled={startDisabled} style={{ flex: 1 }}>
-          {startDisabled ? "Nothing to do" : "Start"}
+        <button
+          type="button"
+          className="lt-btn"
+          onClick={isJobActive ? onCancel : onStart}
+          disabled={isJobActive ? isCancelling : startDisabled}
+          style={{ flex: 1 }}
+        >
+          {isJobActive ? (isCancelling ? "Cancelling..." : "Cancel") : (startDisabled ? "Nothing to do" : "Start")}
         </button>
       </div>
 

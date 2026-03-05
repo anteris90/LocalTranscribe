@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 from typing import Any, Callable
+import threading
+from urllib.parse import unquote, urlparse
+from urllib.request import url2pathname
 
 from app.core.device_service import DeviceCapabilities
 from app.core.errors import BackendError
@@ -28,12 +32,54 @@ class TranscriptionService:
         self,
         request: TranscriptionRequest,
         emit_event: ProgressEmitter,
+        cancel_event: threading.Event | None = None,
     ) -> TranscriptionResult:
         self._validate_request(request)
 
-        file_path = Path(request.file_path).resolve(strict=False)
+        if cancel_event is not None and cancel_event.is_set():
+            raise BackendError(code=2201, message="Transcription canceled", data=None)
+
+        raw_path = request.file_path
+        normalized_path = raw_path.strip()
+        if (
+            (normalized_path.startswith('"') and normalized_path.endswith('"'))
+            or (normalized_path.startswith("'") and normalized_path.endswith("'"))
+        ):
+            normalized_path = normalized_path[1:-1].strip()
+
+        if normalized_path.lower().startswith("file://"):
+            parsed = urlparse(normalized_path)
+            if parsed.scheme == "file":
+                decoded_path = url2pathname(unquote(parsed.path))
+                if parsed.netloc:
+                    normalized_path = f"\\\\{parsed.netloc}{decoded_path}"
+                else:
+                    normalized_path = decoded_path
+
+        try:
+            file_path = Path(normalized_path).resolve(strict=False)
+        except Exception:
+            file_path = Path(normalized_path)
+
         if not file_path.exists() or not file_path.is_file():
-            raise BackendError(code=2101, message="Input file not found", data={"path": str(file_path)})
+            raise BackendError(
+                code=2101,
+                message=f"Input file not found: {file_path}",
+                data={
+                    "path": str(file_path),
+                    "raw_path": raw_path,
+                    "normalized_path": normalized_path,
+                },
+            )
+
+        emit_event(
+            "transcription.progress",
+            {
+                "percent": 0,
+                "stage": "probing_media",
+                "partial_text": "",
+            },
+        )
 
         # Probe media duration early so we can prefer safer compute types for long files
         media_duration = self._probe_duration_seconds(file_path)
@@ -71,7 +117,7 @@ class TranscriptionService:
                 "transcription.progress",
                 {
                     "percent": 1,
-                    "stage": "loading",
+                    "stage": "loading_model",
                     "partial_text": "",
                     "device": attempt.device,
                     "compute_type": attempt.compute_type,
@@ -85,6 +131,17 @@ class TranscriptionService:
                     compute_type=attempt.compute_type,
                 )
 
+                emit_event(
+                    "transcription.progress",
+                    {
+                        "percent": 3,
+                        "stage": "starting_transcription",
+                        "partial_text": "",
+                        "device": attempt.device,
+                        "compute_type": attempt.compute_type,
+                    },
+                )
+
                 result = self._run_transcription(
                     model=model,
                     file_path=file_path,
@@ -93,6 +150,7 @@ class TranscriptionService:
                     effective_device=attempt.device,
                     effective_compute_type=attempt.compute_type,
                     prior_attempts=executed_attempts,
+                    cancel_event=cancel_event,
                 )
                 return result
             except BackendError as exc:
@@ -134,7 +192,11 @@ class TranscriptionService:
         effective_device: str,
         effective_compute_type: str,
         prior_attempts: list[AttemptResult],
+        cancel_event: threading.Event | None,
     ) -> TranscriptionResult:
+        if cancel_event is not None and cancel_event.is_set():
+            raise BackendError(code=2201, message="Transcription canceled", data=None)
+
         emit_event(
             "transcription.progress",
             {
@@ -156,6 +218,17 @@ class TranscriptionService:
             language_param = language
 
         try:
+            transcribe_kwargs: dict[str, Any] = {
+                "task": "transcribe",
+                "language": language_param,
+                # Reduce hallucinations in silence/music and prevent runaway repetition.
+                "vad_filter": True,
+                "condition_on_previous_text": False,
+            }
+
+            segments_iter, info = model.transcribe(str(file_path), **transcribe_kwargs)
+        except TypeError:
+            # Defensive fallback for older faster-whisper signatures.
             segments_iter, info = model.transcribe(
                 str(file_path),
                 language=language_param,
@@ -186,6 +259,9 @@ class TranscriptionService:
 
         try:
             for raw_segment in segments_iter:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise BackendError(code=2201, message="Transcription canceled", data=None)
+
                 text = str(getattr(raw_segment, "text", "")).strip()
                 start = float(getattr(raw_segment, "start", 0.0))
                 end = float(getattr(raw_segment, "end", start))
@@ -313,13 +389,36 @@ class TranscriptionService:
 
     def _probe_duration_seconds(self, file_path: Path) -> float | None:
         try:
-            import ffmpeg
-
-            probe_data = ffmpeg.probe(str(file_path))
-            duration_raw = probe_data.get("format", {}).get("duration")
-            if duration_raw is None:
+            # Use ffprobe directly with a timeout.
+            # Some large/odd containers can cause duration probing to take a very long time;
+            # duration is an optional hint only, so we prefer a fast fallback.
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-analyzeduration",
+                    "0",
+                    "-probesize",
+                    "32k",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(file_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
                 return None
-            duration = float(duration_raw)
+
+            raw = (result.stdout or "").strip()
+            if not raw:
+                return None
+
+            duration = float(raw)
             if duration <= 0:
                 return None
             return duration

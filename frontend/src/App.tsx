@@ -28,7 +28,7 @@ import type {
   ProgressNotification,
 } from "./types/ipc";
 
-type UiJobStatus = "idle" | "queued" | "running" | "completed" | "failed";
+type UiJobStatus = "idle" | "queued" | "running" | "completed" | "failed" | "canceled";
 
 const modelOptions: ModelOption[] = ["small", "medium", "large-v3"];
 const deviceOptions: Array<{ value: DeviceOption; label: string }> = [
@@ -42,13 +42,15 @@ export function App() {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<ModelOption>("medium");
   const [selectedDevice, setSelectedDevice] = useState<DeviceOption>("auto");
-  const [language] = useState<string>("auto");
+  const [language, setLanguage] = useState<string>("auto");
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
 
   const [jobId, setJobId] = useState<string | null>(null);
+  const jobIdRef = useRef<string | null>(null);
   const [jobStatus, setJobStatus] = useState<UiJobStatus>("idle");
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [progressStage, setProgressStage] = useState<string>("idle");
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [transcriptText, setTranscriptText] = useState<string>("");
   const [logsText, setLogsText] = useState<string>("");
   const [transcriptSegments, setTranscriptSegments] = useState<ExportSegment[]>([]);
@@ -166,11 +168,24 @@ export function App() {
   ]);
 
   const startDisabled = useMemo(() => {
-    if (!selectedFilePath) {
+    const isProbablyAbsolutePath = (input: string) => {
+      const value = input.trim();
+      if (value.length === 0) {
+        return false;
+      }
+      // Windows: C:\ or C:/ or UNC \\server\share
+      if (/^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\\\")) {
+        return true;
+      }
+      // POSIX absolute
+      return value.startsWith("/");
+    };
+
+    if (!isProbablyAbsolutePath(selectedFilePath)) {
       return true;
     }
-    return isJobActive;
-  }, [selectedFilePath, isJobActive]);
+    return false;
+  }, [selectedFilePath]);
 
   const appendLog = (line: string) => {
     const text = line.trim();
@@ -271,6 +286,7 @@ export function App() {
           return;
         }
         if (typeof job.job_id === "string") {
+          jobIdRef.current = job.job_id;
           setJobId(job.job_id);
         }
         if (job.status === "queued" || job.status === "running") {
@@ -306,6 +322,14 @@ export function App() {
       const eventType = envelope.params?.type;
       const payload = envelope.params?.payload ?? {};
 
+      // Avoid dropping early events that arrive before React state updates.
+      const payloadJobId = (payload as any)?.job_id;
+      if (!jobIdRef.current && typeof payloadJobId === "string" && payloadJobId.trim().length > 0) {
+        jobIdRef.current = payloadJobId;
+        setJobId(payloadJobId);
+      }
+      const activeJobId = jobIdRef.current;
+
       if (eventType === "resource.download") {
         const event = payload as unknown as DownloadNotification;
         const message = typeof event.message === "string" ? event.message : "";
@@ -334,7 +358,7 @@ export function App() {
 
         if (event.status === "completed") {
           setIsDownloadingResources(false);
-          if (!jobId) {
+          if (!activeJobId) {
             setJobStatus("idle");
           }
           setProgressPercent(100);
@@ -347,7 +371,7 @@ export function App() {
 
         if (event.status === "failed") {
           setIsDownloadingResources(false);
-          if (!jobId) {
+          if (!activeJobId) {
             setJobStatus("idle");
           }
           setProgressStage("failed");
@@ -360,7 +384,7 @@ export function App() {
 
       if (eventType === "transcription.progress") {
         const event = payload as unknown as ProgressNotification;
-        if (!jobId || event.job_id !== jobId) {
+        if (!activeJobId || event.job_id !== activeJobId) {
           return;
         }
 
@@ -378,7 +402,7 @@ export function App() {
 
       if (eventType === "transcription.language_detected") {
         const job = (payload as any).job_id;
-        if (!jobId || (typeof job === "string" && job !== jobId)) {
+        if (!activeJobId || (typeof job === "string" && job !== activeJobId)) {
           return;
         }
 
@@ -399,7 +423,7 @@ export function App() {
 
       if (eventType === "transcription.downgrade") {
         const event = payload as unknown as DowngradeNotification;
-        if (!jobId || (event.job_id && event.job_id !== jobId)) {
+        if (!activeJobId || (event.job_id && event.job_id !== activeJobId)) {
           return;
         }
         const fromDevice = event.from_device ?? "unknown";
@@ -411,12 +435,25 @@ export function App() {
 
       if (eventType === "transcription.job_state") {
         const event = payload as unknown as JobStateNotification;
-        if (!jobId || event.job_id !== jobId) {
+        if (!activeJobId || event.job_id !== activeJobId) {
           return;
         }
 
+        const isCancelError = (error: any): boolean => {
+          const code = error?.code;
+          const message = error?.message;
+          if (code === 2201) {
+            return true;
+          }
+          if (typeof message === "string" && message.toLowerCase().includes("canceled")) {
+            return true;
+          }
+          return false;
+        };
+
         if (event.status === "running") {
           setIsDownloadingResources(false);
+          setIsCancelling(false);
           setJobStatus("running");
           setInfoMessage("Transcription running");
           return;
@@ -424,6 +461,7 @@ export function App() {
 
         if (event.status === "completed") {
           setIsDownloadingResources(false);
+          setIsCancelling(false);
           setJobStatus("completed");
           setProgressPercent(100);
           setProgressStage("completed");
@@ -456,6 +494,17 @@ export function App() {
 
         if (event.status === "failed") {
           setIsDownloadingResources(false);
+          setIsCancelling(false);
+
+          if (isCancelError(event.error)) {
+            setJobStatus("canceled");
+            setProgressStage("canceled");
+            setInfoMessage("Transcription canceled");
+            setErrorMessage("");
+            appendLog("[job] canceled");
+            return;
+          }
+
           setJobStatus("failed");
           setProgressStage("failed");
           setErrorMessage(event.error?.message ?? "Transcription failed");
@@ -613,7 +662,7 @@ export function App() {
       unsubError();
       unsubState();
     };
-  }, [isDownloadingResources, jobId]);
+  }, [isDownloadingResources]);
 
   const onPickFile: ChangeEventHandler<HTMLInputElement> = (event) => {
     const file = event.target.files?.[0];
@@ -621,13 +670,76 @@ export function App() {
       return;
     }
 
-    setSelectedFilePath((file as File & { path?: string }).path ?? file.name);
+    const filePath = (file as File & { path?: string }).path;
+    if (typeof filePath !== "string" || filePath.trim().length === 0) {
+      // In some environments the HTML file input does not expose an absolute path.
+      // Passing only file.name to the backend will fail with "Input file not found".
+      setSelectedFilePath("");
+      setSelectedFileName(file.name);
+      setInfoMessage("");
+      setErrorMessage("Unable to access the full file path. Use 'Select: Audio/Video' instead.");
+      return;
+    }
+
+    setSelectedFilePath(filePath);
     setSelectedFileName(file.name);
     setErrorMessage("");
     setInfoMessage("File selected");
   };
 
+  const openFilePicker = async () => {
+    const backend = (window as any).localTranscribeBackend;
+    if (backend?.openFile) {
+      try {
+        const result = await backend.openFile({ title: "Select Audio/Video" });
+        if (!result || result.canceled) {
+          setInfoMessage("File selection canceled");
+          return;
+        }
+
+        const filePath = typeof result.filePath === "string" ? result.filePath : "";
+        const fileName = typeof result.fileName === "string" ? result.fileName : "";
+        if (filePath.trim().length === 0) {
+          setErrorMessage("Invalid file selection");
+          return;
+        }
+
+        setSelectedFilePath(filePath);
+        setSelectedFileName(fileName || filePath);
+        setErrorMessage("");
+        setInfoMessage("File selected");
+        return;
+      } catch {
+        // fall back to HTML file input
+      }
+    }
+
+    const el = document.getElementById("filePicker") as HTMLInputElement | null;
+    el?.click();
+  };
+
   const onStart = async () => {
+    setIsCancelling(false);
+
+    const selectedPath = selectedFilePath.trim();
+    const isProbablyAbsolutePath = (input: string) => {
+      if (input.length === 0) {
+        return false;
+      }
+      if (/^[a-zA-Z]:[\\/]/.test(input) || input.startsWith("\\\\")) {
+        return true;
+      }
+      return input.startsWith("/");
+    };
+
+    if (!isProbablyAbsolutePath(selectedPath)) {
+      setErrorMessage("Invalid file selection. Use 'Select: Audio/Video' and pick a file from disk.");
+      setInfoMessage("");
+      setJobStatus("idle");
+      setProgressStage("idle");
+      return;
+    }
+
     setErrorMessage("");
     setInfoMessage("");
     setDowngradeMessage("");
@@ -655,6 +767,7 @@ export function App() {
             allowFfmpegDownload,
           });
 
+          jobIdRef.current = started.jobId;
           setJobId(started.jobId);
           setJobStatus(started.status === "queued" ? "queued" : "running");
           setInfoMessage(`Job started (${started.jobId})`);
@@ -709,6 +822,30 @@ export function App() {
       setJobStatus("failed");
       setProgressStage("failed");
       setIsDownloadingResources(false);
+    }
+  };
+
+  const onCancel = async () => {
+    if (!isJobActive) {
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      setInfoMessage("Cancel requested...");
+      setErrorMessage("");
+
+      await sendBackendRequest({
+        method: "cancel_job",
+        params: {
+          job_id: jobIdRef.current,
+        },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unable to cancel job";
+      setErrorMessage(message);
+      setInfoMessage("");
+      setIsCancelling(false);
     }
   };
 
@@ -912,7 +1049,7 @@ export function App() {
         <div className="lt-file-spanner lt-panel">
           <input id="filePicker" className="lt-file-input" type="file" accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.mkv,.m4a,.aac,.flac" onChange={onPickFile} />
           <div style={{ display: "flex", gap: 8, alignItems: "center", width: "100%" }}>
-            <button type="button" className="lt-btn lt-file-btn" onClick={() => { const el = document.getElementById("filePicker") as HTMLInputElement | null; el?.click(); }}>Select: Audio/Video</button>
+            <button type="button" className="lt-btn lt-file-btn" onClick={() => { void openFilePicker(); }}>Select: Audio/Video</button>
             <div className="lt-file-name" title={selectedFileName || "No file selected"} style={{ marginLeft: 8, flex: 1 }}>{selectedFileName || "No file selected"}</div>
           </div>
         </div>
@@ -922,10 +1059,15 @@ export function App() {
           selectedFilePath={selectedFilePath}
           selectedModel={selectedModel}
           selectedDevice={selectedDevice}
+          language={language}
+          isJobActive={isJobActive}
+          isCancelling={isCancelling}
           onModelChange={(m) => setSelectedModel(m)}
           onDeviceChange={(d) => setSelectedDevice(d)}
+          onLanguageChange={(v) => setLanguage(v)}
           onPickFile={onPickFile}
           onStart={onStart}
+          onCancel={() => { void onCancel(); }}
           startDisabled={startDisabled}
           onCheckUpdates={onCheckUpdates}
           onApplyUpdates={onApplyUpdates}

@@ -1,0 +1,82 @@
+name: Release (Windows)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_windows:
+    name: Build Windows (installer + backend)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Build Electron (TypeScript)
+        run: npm run build:electron
+
+      - name: Package Electron app (Windows)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm --workspace electron run dist
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build backend onefile (Windows)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install pyinstaller
+          python -m PyInstaller --onefile --name backend --distpath backend/dist/windows --workpath backend/build/windows --specpath backend/build/windows --paths backend backend/app/main.py
+          if (!(Test-Path "backend/dist/windows/backend.exe")) { throw "Expected backend artifact not found" }
+
+      - name: Ensure GitHub Release exists
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          gh release view $env:TAG --repo $env:REPO *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:TAG --title $env:TAG --generate-notes --repo $env:REPO
+          }
+
+      - name: Upload release assets (Windows)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = node -p "require('./package.json').version"
+          $installer = "dist/packages/LocalTranscribe-$version-win-x64.exe"
+          if (!(Test-Path $installer)) { throw "Installer not found: $installer" }
+
+          gh release upload $env:TAG "$installer" --repo $env:REPO --clobber
+          gh release upload $env:TAG "backend/dist/windows/backend.exe#backend-win-x64.exe" --repo $env:REPO --clobber

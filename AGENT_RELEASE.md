@@ -150,6 +150,19 @@ High-level workflow idea:
 
 If you want this automated, add a workflow under `.github/workflows/release.yml`.
 
+## Agent Rule: Build Only for Current Platform
+
+When the request is "build and upload", agents must **only build artifacts that are feasible on the current machine OS**:
+
+- On **Windows**: build/upload Windows artifacts only (e.g. `LocalTranscribe-<version>-win-x64.exe`, `backend-win-x64.exe`).
+- On **macOS**: build/upload macOS artifacts only (e.g. `LocalTranscribe-<version>-mac-arm64.dmg`).
+
+Do **not** loop attempting cross-platform builds locally (Windows cannot produce a signed/valid DMG reliably; macOS cannot produce a Windows NSIS installer reliably).
+
+If the user wants "all platforms":
+- Use the CI workflow (preferred), or
+- Ask the user to run the other platform build on the appropriate OS and upload that asset to the same GitHub Release.
+
 This repo includes a workflow at:
 - [.github/workflows/release.yml](.github/workflows/release.yml)
 

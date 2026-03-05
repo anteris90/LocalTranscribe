@@ -227,6 +227,8 @@ Compute type:
 
 Use Electron Builder packaging flow.
 
+Rule: When asked to "build and upload" release artifacts, only build artifacts for the current OS (Windows -> `.exe`, macOS -> `.dmg`). Use CI or build on the other OS for the remaining artifacts.
+
 Final output:
 
 * Windows: .exe installer

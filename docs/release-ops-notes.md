@@ -62,9 +62,9 @@ If CI is not desired/blocked but release object exists:
    - `LocalTranscribe-<version>-win-x64.exe`
    - `backend.exe` (label: `backend-win-x64.exe`)
 4. Add release notes text:
-   - `cp docs/release-notes-template.md /tmp/release-notes-v<version>.md`
-   - Replace `X.Y.Z` and `<change summary>` placeholders
-   - `gh release edit v<version> --notes-file /tmp/release-notes-v<version>.md`
+   - `npm run release:notes -- v<version>`
+   - Edit `docs/release-notes-v<version>.md` (fill `<change summary>` placeholders)
+   - `gh release edit v<version> --notes-file docs/release-notes-v<version>.md`
 
 Include install workaround link in release notes when shipping unsigned macOS builds:
 

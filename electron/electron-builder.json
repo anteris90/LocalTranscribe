@@ -30,7 +30,12 @@
       }
     ],
     "icon": "../build/icon.ico",
-    "extraResources": []
+    "extraResources": [
+      {
+        "from": "../backend/dist/windows/backend.exe",
+        "to": "backend/backend.exe"
+      }
+    ]
   },
   "mac": {
     "target": [

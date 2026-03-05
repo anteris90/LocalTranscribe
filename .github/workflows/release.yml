@@ -55,11 +55,6 @@ jobs:
       - name: Build Electron (TypeScript)
         run: npm run build:electron
 
-      - name: Package Electron app (Windows)
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm --workspace electron run dist
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -74,6 +69,11 @@ jobs:
           python -m PyInstaller --onefile --name backend --distpath backend/dist/windows --workpath backend/build/windows --specpath backend/build/windows --paths backend backend/app/main.py
           if (!(Test-Path "backend/dist/windows/backend.exe")) { throw "Expected backend artifact not found" }
 
+      - name: Package Electron app (Windows)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm --workspace electron run dist
+
       - name: Upload release assets (Windows)
         shell: pwsh
         env:
@@ -86,7 +86,6 @@ jobs:
           if (!(Test-Path $installer)) { throw "Installer not found: $installer" }
 
           gh release upload $env:TAG "$installer" --repo $env:REPO --clobber
-          gh release upload $env:TAG "backend/dist/windows/backend.exe#backend-win-x64.exe" --repo $env:REPO --clobber
 
   build_macos_arm64:
     name: Build macOS (arm64 dmg)

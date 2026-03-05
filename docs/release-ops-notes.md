@@ -55,7 +55,7 @@ Fix applied in workflow:
 
 If CI is not desired/blocked but release object exists:
 
-1. Ensure release tag exists (example `v0.1.7`).
+1. Ensure release tag exists (example `v0.1.8`).
 2. Upload local mac artifact manually:
    - `gh release upload v<version> "dist/packages/LocalTranscribe-<version>-mac-arm64.dmg" --clobber`
 3. Ensure Windows artifacts are present (either from CI or manual upload if available):

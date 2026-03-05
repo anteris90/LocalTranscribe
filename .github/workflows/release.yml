@@ -118,6 +118,23 @@ jobs:
           python -m PyInstaller --onefile --name backend --distpath backend/dist/macos-arm64 --workpath backend/build/macos-arm64 --specpath backend/build/macos-arm64 --paths backend backend/app/main.py
           test -f backend/dist/macos-arm64/backend
 
+      - name: Prepare ffmpeg runtime (macOS arm64)
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            brew install ffmpeg
+          fi
+
+          mkdir -p bin/macos-arm64
+          cp "$(command -v ffmpeg)" bin/macos-arm64/ffmpeg
+          chmod +x bin/macos-arm64/ffmpeg
+
+          if command -v ffprobe >/dev/null 2>&1; then
+            cp "$(command -v ffprobe)" bin/macos-arm64/ffprobe
+            chmod +x bin/macos-arm64/ffprobe
+          fi
+
+          test -f bin/macos-arm64/ffmpeg
+
       - name: Build frontend
         run: npm run build:frontend
 

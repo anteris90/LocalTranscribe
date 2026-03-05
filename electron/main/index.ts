@@ -245,6 +245,29 @@ async function ensurePackagedBackend(runtime: RuntimePaths): Promise<void> {
     return;
   }
 
+  if (process.platform === "darwin") {
+    const bundledBackend = path.resolve(process.resourcesPath, "backend", "backend");
+    if (!fs.existsSync(bundledBackend)) {
+      throw new Error(`Bundled backend missing at ${bundledBackend}. Ensure packaging includes Resources/backend/backend.`);
+    }
+
+    fs.mkdirSync(path.dirname(runtime.backendExecutable), { recursive: true });
+    fs.copyFileSync(bundledBackend, runtime.backendExecutable);
+    try {
+      fs.chmodSync(runtime.backendExecutable, 0o755);
+    } catch {
+      // best effort, spawn will surface errors if execution still fails
+    }
+
+    emitBootstrapState({
+      status: "bootstrapping",
+      stage: "completed",
+      message: "Backend runtime prepared",
+      percent: 100,
+    });
+    return;
+  }
+
   const backendUrl = runtime.backendDownloadUrl;
   if (!backendUrl) {
     throw new Error(`Backend runtime missing at ${runtime.backendExecutable}. Ensure the packaged app includes Resources/backend/backend.`);

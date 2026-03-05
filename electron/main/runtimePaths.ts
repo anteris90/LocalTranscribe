@@ -54,31 +54,25 @@ export function resolveRuntimePaths(): RuntimePaths {
         ? path.resolve(runtimeRoot, "ffmpeg")
         : path.resolve(resourcesPath, "ffmpeg");
     const dataDir = path.resolve(runtimeRoot, "data");
-    const packagedBackendDir = path.resolve(resourcesPath, "backend");
-    const packagedBackendExecutable = process.platform === "win32"
-      ? path.resolve(packagedBackendDir, "backend.exe")
-      : path.resolve(packagedBackendDir, "backend");
+    const backendDir = path.resolve(runtimeRoot, "backend");
+    const backendExecutable =
+      process.platform === "win32"
+        ? path.resolve(backendDir, "backend.exe")
+        : path.resolve(backendDir, "backend");
 
-    const runtimeBackendDir = path.resolve(runtimeRoot, "backend");
-    const runtimeBackendExecutable = process.platform === "win32"
-      ? path.resolve(runtimeBackendDir, "backend.exe")
-      : path.resolve(runtimeBackendDir, "backend");
-
-    const backendExecutable = existsFile(packagedBackendExecutable)
-      ? packagedBackendExecutable
-      : runtimeBackendExecutable;
-
-    const backendDownloadUrl =
-      process.platform === "win32" && backendExecutable === runtimeBackendExecutable
-        ? process.env.LOCALTRANSCRIBE_BACKEND_URL
+    const defaultBackendUrl =
+      process.platform === "win32"
+        ? `https://github.com/LocalTranscribe/LocalTranscribe/releases/download/v${app.getVersion()}/backend-win-x64.exe`
         : undefined;
+
+    const backendDownloadUrl = process.env.LOCALTRANSCRIBE_BACKEND_URL ?? defaultBackendUrl;
 
     fs.mkdirSync(runtimeRoot, { recursive: true });
     fs.mkdirSync(modelsDir, { recursive: true });
     if (process.platform === "win32") {
       fs.mkdirSync(ffmpegDir, { recursive: true });
-      fs.mkdirSync(runtimeBackendDir, { recursive: true });
     }
+    fs.mkdirSync(backendDir, { recursive: true });
     fs.mkdirSync(dataDir, { recursive: true });
 
     return {

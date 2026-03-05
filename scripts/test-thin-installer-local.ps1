@@ -79,19 +79,26 @@ function Ensure-ValidAppPackage {
 
   $exeExists = Test-Path $ExecutablePath
   $asarPath = Join-Path (Split-Path $ExecutablePath -Parent) "resources\app.asar"
-  $asarLength = if (Test-Path $asarPath) { (Get-Item $asarPath).Length } else { 0 }
-
-  if ($exeExists -and $asarLength -gt 1024) {
-    return $ExecutablePath
-  }
+  $asarItem = if (Test-Path $asarPath) { Get-Item $asarPath } else { $null }
+  $asarLength = if ($asarItem) { $asarItem.Length } else { 0 }
 
   $newestSourceWrite = (
     Get-Item @(
       "frontend/src/App.tsx",
+      "frontend/src/ui/HealthDot.tsx",
       "electron/main/index.ts",
       "electron/main/backendBridge.ts"
     ) | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   ).LastWriteTime
+
+  $asarIsFresh = $false
+  if ($asarItem) {
+    $asarIsFresh = $asarItem.LastWriteTime -ge $newestSourceWrite
+  }
+
+  if ($exeExists -and $asarLength -gt 1024 -and $asarIsFresh) {
+    return $ExecutablePath
+  }
 
   $latestFallbackExe = Get-LatestValidFallbackExecutable -NotOlderThan $newestSourceWrite
   if ($latestFallbackExe) {

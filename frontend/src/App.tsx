@@ -7,6 +7,7 @@ import ConsolePanel from "./ui/ConsolePanel";
 import {
   checkResourceUpdates,
   getJobStatus,
+  sendBackendRequest,
   saveExportFile,
   startTranscription,
   subscribeBackendErrors,
@@ -15,6 +16,7 @@ import {
   updateResources,
 } from "./services/backendClient";
 import { buildExportContent } from "./services/exportFormatters";
+import HealthDot, { type HealthDotStatus } from "./ui/HealthDot";
 import type {
   DownloadNotification,
   DeviceOption,
@@ -57,6 +59,16 @@ export function App() {
   const [ffmpegUpdateAvailable, setFfmpegUpdateAvailable] = useState<boolean>(false);
   const [isApplyingUpdates, setIsApplyingUpdates] = useState<boolean>(false);
 
+  const [backendLifecycleStatus, setBackendLifecycleStatus] = useState<string>("unknown");
+  const [healthLastPingOkAt, setHealthLastPingOkAt] = useState<number>(0);
+  const [healthLastPingMs, setHealthLastPingMs] = useState<number | null>(null);
+  const [healthLastPingError, setHealthLastPingError] = useState<string | null>(null);
+  const [healthLastPingErrorAt, setHealthLastPingErrorAt] = useState<number>(0);
+  const [healthConsecutivePingFailures, setHealthConsecutivePingFailures] = useState<number>(0);
+  const [healthLastSevereErrorAt, setHealthLastSevereErrorAt] = useState<number>(0);
+  const [healthLastSevereErrorMessage, setHealthLastSevereErrorMessage] = useState<string | null>(null);
+  const backendActivityAtRef = useRef<number>(Date.now());
+
   const [infoMessage, setInfoMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [downgradeMessage, setDowngradeMessage] = useState<string>("");
@@ -65,6 +77,93 @@ export function App() {
 
   const isJobActive = jobStatus === "queued" || jobStatus === "running";
   const hasTranscript = jobStatus === "completed" && transcriptText.trim().length > 0;
+
+  const health = useMemo((): { status: HealthDotStatus; title: string } => {
+    const now = Date.now();
+    const hasRecentSevere = healthLastSevereErrorAt > 0 && now - healthLastSevereErrorAt < 30000;
+    if (hasRecentSevere) {
+      return {
+        status: "bad",
+        title: `Red: ${healthLastSevereErrorMessage ?? "Backend error"}`,
+      };
+    }
+
+    const backendActivityAgeMs = Math.max(0, now - backendActivityAtRef.current);
+
+    const isBootstrapping = backendLifecycleStatus === "bootstrapping";
+    const isRestarting = backendLifecycleStatus === "restarting";
+    const isBusy = isJobActive || isDownloadingResources || isApplyingUpdates || isBootstrapping || isRestarting;
+
+    const hasRecentPingError = healthLastPingErrorAt > 0 && now - healthLastPingErrorAt < 15000;
+    if (isJobActive && backendActivityAgeMs > 45000 && hasRecentPingError && healthConsecutivePingFailures >= 2) {
+      return {
+        status: "bad",
+        title: "Red: No backend activity (possible freeze)",
+      };
+    }
+
+    // Prefer a "stale since last OK" signal over transient ping errors.
+    if (healthLastPingOkAt > 0) {
+      const staleMs = now - healthLastPingOkAt;
+      if (staleMs > 20000 && !isBusy) {
+        return { status: "bad", title: "Red: Backend heartbeat stale" };
+      }
+      if (staleMs > 20000 && isBusy) {
+        return { status: "warn", title: "Orange: Backend busy" };
+      }
+    }
+
+    // Only go red for ping errors once we see repeated failures.
+    if (hasRecentPingError && !isBusy && healthConsecutivePingFailures >= 2) {
+      const detail = healthLastPingError ? ` (${healthLastPingError})` : "";
+      return {
+        status: "bad",
+        title: `Red: Backend not responding${detail}`,
+      };
+    }
+
+    if (isBusy) {
+      const label = isBootstrapping
+        ? "Starting backend"
+        : isRestarting
+          ? "Backend restarting"
+          : isJobActive
+            ? "Heavy load"
+            : "Working";
+      const activity = isJobActive && backendActivityAgeMs > 15000 ? ` (last activity ${Math.round(backendActivityAgeMs / 1000)}s ago)` : "";
+      const ping = typeof healthLastPingMs === "number" ? ` (ping ${healthLastPingMs}ms)` : "";
+      return {
+        status: "warn",
+        title: `Orange: ${label}${activity}${ping}`,
+      };
+    }
+
+    if (healthLastPingOkAt === 0) {
+      if (backendLifecycleStatus === "running") {
+        return { status: "ok", title: "Green: Connected" };
+      }
+      return { status: "warn", title: "Orange: Checking backend" };
+    }
+
+    if (typeof healthLastPingMs === "number" && healthLastPingMs > 1200) {
+      return { status: "warn", title: `Orange: Slow (ping ${healthLastPingMs}ms)` };
+    }
+
+    const ping = typeof healthLastPingMs === "number" ? ` (ping ${healthLastPingMs}ms)` : "";
+    return { status: "ok", title: `Green: OK${ping}` };
+  }, [
+    backendLifecycleStatus,
+    healthLastPingError,
+    healthLastPingErrorAt,
+    healthConsecutivePingFailures,
+    healthLastPingMs,
+    healthLastPingOkAt,
+    healthLastSevereErrorAt,
+    healthLastSevereErrorMessage,
+    isApplyingUpdates,
+    isDownloadingResources,
+    isJobActive,
+  ]);
 
   const startDisabled = useMemo(() => {
     if (!selectedFilePath) {
@@ -116,6 +215,54 @@ export function App() {
     return () => { try { unsub?.(); } catch {} };
   }, []);
 
+  // Lightweight health check: periodically ping the backend over the existing IPC bridge.
+  useEffect(() => {
+    let cancelled = false;
+    const intervalMs = 5000;
+    const uiTimeoutMs = 8000;
+
+    const tick = async () => {
+      const started = performance.now();
+      try {
+        await Promise.race([
+          sendBackendRequest({ method: "ping", params: {} }),
+          new Promise<void>((_resolve, reject) => {
+            window.setTimeout(() => reject(new Error("Ping timeout")), uiTimeoutMs);
+          }),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        const elapsed = Math.max(0, Math.round(performance.now() - started));
+        setHealthLastPingOkAt(Date.now());
+        setHealthLastPingMs(elapsed);
+        setHealthLastPingError(null);
+        setHealthLastPingErrorAt(0);
+        setHealthConsecutivePingFailures(0);
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+        const elapsed = Math.max(0, Math.round(performance.now() - started));
+        const message = error instanceof Error ? error.message : "Ping failed";
+        setHealthLastPingMs(elapsed);
+        setHealthLastPingError(message);
+        setHealthLastPingErrorAt(Date.now());
+        setHealthConsecutivePingFailures((prev) => Math.min(20, prev + 1));
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
+    }, intervalMs);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
   useEffect(() => {
     void getJobStatus()
       .then((response) => {
@@ -153,6 +300,8 @@ export function App() {
       if (envelope.method !== "event") {
         return;
       }
+
+      backendActivityAtRef.current = Date.now();
 
       const eventType = envelope.params?.type;
       const payload = envelope.params?.payload ?? {};
@@ -366,11 +515,14 @@ export function App() {
     });
 
     const unsubError = subscribeBackendErrors((payload) => {
+      backendActivityAtRef.current = Date.now();
       const eventType = payload.type;
       if (eventType === "backend_unresponsive") {
         if (isDownloadingResources) {
           return;
         }
+        setHealthLastSevereErrorAt(Date.now());
+        setHealthLastSevereErrorMessage("Backend is unresponsive");
         setErrorMessage("Backend is unresponsive");
         return;
       }
@@ -378,6 +530,8 @@ export function App() {
         if (isDownloadingResources) {
           return;
         }
+        setHealthLastSevereErrorAt(Date.now());
+        setHealthLastSevereErrorMessage("Backend process crashed");
         setErrorMessage("Backend process crashed");
         return;
       }
@@ -385,6 +539,8 @@ export function App() {
         if (isDownloadingResources) {
           return;
         }
+        setHealthLastSevereErrorAt(Date.now());
+        setHealthLastSevereErrorMessage("Backend restart limit reached");
         setErrorMessage("Backend restart limit reached");
         return;
       }
@@ -412,8 +568,11 @@ export function App() {
     });
 
     const unsubState = subscribeBackendState((payload) => {
+      backendActivityAtRef.current = Date.now();
       const status = payload.status;
       if (status === "running") {
+        setBackendLifecycleStatus("running");
+        setHealthLastPingOkAt((prev) => (prev > 0 ? prev : Date.now()));
         setIsDownloadingResources(false);
         if (!jobId) {
           setJobStatus("idle");
@@ -421,8 +580,10 @@ export function App() {
         setInfoMessage("Backend connected");
         setErrorMessage("");
       } else if (status === "restarting") {
+        setBackendLifecycleStatus("restarting");
         setInfoMessage("Backend restarting");
       } else if (status === "bootstrapping") {
+        setBackendLifecycleStatus("bootstrapping");
         setIsDownloadingResources(true);
         const stage = typeof payload.stage === "string" ? payload.stage : "downloading";
         const message = typeof payload.message === "string" ? payload.message : "Preparing runtime...";
@@ -437,6 +598,9 @@ export function App() {
           }
         }
       } else if (status === "bootstrapping_failed") {
+        setBackendLifecycleStatus("bootstrapping_failed");
+        setHealthLastSevereErrorAt(Date.now());
+        setHealthLastSevereErrorMessage("Backend bootstrap failed");
         setIsDownloadingResources(false);
         const message = typeof payload.message === "string" ? payload.message : "Backend bootstrap failed";
         setErrorMessage(message);
@@ -703,7 +867,10 @@ export function App() {
     <div className="lt-root" style={{ minHeight: "100vh" }}>
       <div className="lt-container">
         <div className="lt-topbar">
-          <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <HealthDot status={health.status} title={health.title} />
+            <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               type="button"

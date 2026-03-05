@@ -348,6 +348,14 @@ async function bootstrapMain(): Promise<void> {
   // Build a simple application menu with an Edit menu containing a Color Picker
   try {
     const template: MenuItemConstructorOptions[] = [
+      ...(process.platform === "darwin"
+        ? ([
+            {
+              label: app.name,
+              submenu: [{ role: "about" }, { type: "separator" }, { role: "quit" }],
+            },
+          ] as MenuItemConstructorOptions[])
+        : []),
       ...(!app.isPackaged
         ? ([
             {

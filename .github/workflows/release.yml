@@ -138,6 +138,11 @@ jobs:
 
           test -f bin/macos-arm64/ffmpeg
 
+      - name: Re-ensure Rollup native module (macOS)
+        run: |
+          npm install --no-save @rollup/rollup-darwin-arm64@4.59.0
+          node -e "require('@rollup/rollup-darwin-arm64')"
+
       - name: Build frontend
         run: npm run build:frontend
 

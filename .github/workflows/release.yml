@@ -106,6 +106,9 @@ jobs:
       - name: Work around Rollup optional dependency bug
         run: npm install --no-save @rollup/rollup-darwin-arm64@4.59.0
 
+      - name: Work around electron-builder optional DMG dependency bug
+        run: npm install --no-save dmg-license
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

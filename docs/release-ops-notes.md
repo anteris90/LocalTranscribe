@@ -64,6 +64,10 @@ If CI is not desired/blocked but release object exists:
 4. Add release notes text:
    - `gh release edit v<version> --notes "..."`
 
+Include install workaround link in release notes when shipping unsigned macOS builds:
+
+- `docs/unsigned-macos-install.md`
+
 ## Important behavior reminder
 
 - Windows and mac jobs in GitHub Actions are asynchronous remote jobs.

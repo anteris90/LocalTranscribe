@@ -71,6 +71,7 @@ If you see errors similar to those recorded in app logs (missing model dir, miss
 - Architecture and developer notes: [AGENT.md](AGENT.md)
 - Backend details: [backend/README.md](backend/README.md)
 - Model packaging: [models/small/README.md](models/small/README.md)
+- Unsigned macOS install workaround: [docs/unsigned-macos-install.md](docs/unsigned-macos-install.md)
 
 ## Contributing
 - Follow contribution notes in `AGENT.md` and add tests where appropriate. Backend tests are configured via `backend/pyproject.toml`.

@@ -154,6 +154,9 @@ class TranscriptionService:
                 )
                 return result
             except BackendError as exc:
+                # Cancellation is user-driven; do not treat it as an attempt failure.
+                if exc.code == 2201:
+                    raise
                 errors.append(
                     {
                         "device": attempt.device,
@@ -286,6 +289,9 @@ class TranscriptionService:
                         "compute_type": effective_compute_type,
                     },
                 )
+        except BackendError:
+            # Preserve specific BackendError codes (especially cancellation).
+            raise
         except Exception as exc:
             raise BackendError(
                 code=2107,

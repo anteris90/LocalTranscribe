@@ -12,6 +12,8 @@ import { resolveRuntimePaths, type RuntimePaths } from "./runtimePaths";
 let mainWindow: BrowserWindow | null = null;
 let backendBridge: BackendBridge | null = null;
 
+let menuBarVisible = false;
+
 // Synchronous early marker to detect if the Electron main module loads at all.
 try {
   const tmpDir = os.tmpdir();
@@ -44,6 +46,18 @@ function createMainWindow(runtimeAppRoot: string): BrowserWindow {
       devTools: isDev,
     },
   });
+
+  // Hide the default menu bar (File/Edit/View...) by default on Windows/Linux,
+  // but keep the menu template registered so accelerators still work.
+  if (process.platform !== "darwin") {
+    try {
+      window.setAutoHideMenuBar(true);
+      window.setMenuBarVisibility(false);
+      menuBarVisible = false;
+    } catch {
+      // best effort
+    }
+  }
 
   const devRendererUrl = process.env.LOCALTRANSCRIBE_RENDERER_URL;
   if (devRendererUrl) {
@@ -413,6 +427,27 @@ async function bootstrapMain(): Promise<void> {
       {
         label: "Edit",
         submenu: [
+          {
+            label: "Toggle Menu Bar",
+            accelerator: "Ctrl+Shift+A",
+            click: () => {
+              try {
+                const windows = BrowserWindow.getAllWindows();
+                menuBarVisible = !menuBarVisible;
+                for (const win of windows) {
+                  try {
+                    win.setMenuBarVisibility(menuBarVisible);
+                    win.setAutoHideMenuBar(!menuBarVisible);
+                  } catch {
+                    // ignore per-window errors
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            },
+          },
+          { type: "separator" },
           { role: "undo" },
           { role: "redo" },
           { type: "separator" },

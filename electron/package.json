@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "npm run build && electron .",
+    "dev": "npm --prefix .. run build:frontend && npm run build && electron .",
     "build": "node scripts/generate-icons.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pack:dir": "node scripts/generate-icons.mjs && electron-builder --dir --config electron-builder.json",

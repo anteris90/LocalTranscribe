@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "r
 import "./ui/theme.css";
 import Sidebar from "./ui/Sidebar";
 import TranscriptPanel from "./ui/TranscriptPanel";
-import ConsolePanel from "./ui/ConsolePanel";
 
 import {
   checkResourceUpdates,
@@ -1006,7 +1005,12 @@ export function App() {
         <div className="lt-topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <HealthDot status={health.status} title={health.title} />
-            <h1 style={{ margin: 0 }}>LocalTranscribe</h1>
+            <h1 style={{ margin: 0, display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span>LocalTranscribe</span>
+              <span style={{ fontSize: "0.7em", opacity: 0.8, fontWeight: 400 }}>
+                — powered by Whisper
+              </span>
+            </h1>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
@@ -1080,11 +1084,31 @@ export function App() {
 
         <main>
           <section>
-            <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 260px",
+                gap: 12,
+                minHeight: 0,
+                flex: 1,
+              }}
+            >
+              <div style={{ minHeight: 0, overflow: "hidden" }}>
+                <TranscriptPanel transcriptText={transcriptText} transcriptSegments={transcriptSegments} />
+              </div>
+
+              <div className="lt-panel" style={{ minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                <label style={{ display: "block", marginBottom: 6 }}>Console</label>
+                <textarea
+                  className="lt-logs"
+                  readOnly
+                  value={logsText && logsText.trim().length > 0 ? logsText : "No logs yet"}
+                  style={{ flex: "1 1 auto", minHeight: 0, maxHeight: "none", resize: "none", width: "100%" }}
+                />
+              </div>
+            </div>
           </section>
         </main>
-
-        <ConsolePanel logsText={logsText} progressPercent={progressPercent} progressStage={progressStage} infoMessage={infoMessage} errorMessage={errorMessage} downgradeMessage={downgradeMessage} effectiveDevice={effectiveDevice} effectiveComputeType={effectiveComputeType} detectedLanguage={detectedLanguage} />
       </div>
     </div>
     </div>

@@ -124,7 +124,8 @@ export class BackendBridge {
         reject,
         timeout,
       });
-      this.child?.stdin.write(`${serialized}\n`);
+      // Be explicit about request encoding to avoid Unicode path mojibake.
+      this.child?.stdin.write(`${serialized}\n`, "utf8");
     });
   }
 
@@ -141,6 +142,16 @@ export class BackendBridge {
       LT_FFMPEG_DIR: resolvedFfmpegDir,
       LT_DATA_DIR: resolvedDataDir,
     };
+
+    // Ensure the Python backend reads JSON requests as UTF-8 and writes UTF-8 diagnostics.
+    // This prevents intermittent Unicode path corruption on Windows when the backend is
+    // launched with legacy codepage defaults (varies between dev vs packaged runs).
+    if (!env.PYTHONUTF8) {
+      env.PYTHONUTF8 = "1";
+    }
+    if (!env.PYTHONIOENCODING) {
+      env.PYTHONIOENCODING = "utf-8";
+    }
 
     if (this.runtime.pythonPathEnv) {
       env.PYTHONPATH = this.runtime.pythonPathEnv;

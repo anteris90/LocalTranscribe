@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 import threading
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
@@ -12,6 +12,9 @@ from app.core.device_service import DeviceCapabilities
 from app.core.errors import BackendError
 from app.models.transcription import AttemptResult, TranscriptSegment, TranscriptionRequest, TranscriptionResult
 from app.services.model_service import ModelService
+
+if TYPE_CHECKING:
+    from app.services.translation_service import TranslationService
 
 ProgressEmitter = Callable[[str, dict[str, Any]], None]
 
@@ -24,9 +27,15 @@ class DeviceAttempt:
 
 
 class TranscriptionService:
-    def __init__(self, model_service: ModelService, capabilities: DeviceCapabilities) -> None:
+    def __init__(
+        self,
+        model_service: ModelService,
+        capabilities: DeviceCapabilities,
+        translation_service: TranslationService | None = None,
+    ) -> None:
         self._model_service = model_service
         self._capabilities = capabilities
+        self._translation_service = translation_service
 
     def transcribe(
         self,
@@ -152,7 +161,7 @@ class TranscriptionService:
                     prior_attempts=executed_attempts,
                     cancel_event=cancel_event,
                 )
-                return result
+                return self._apply_translation(result, request, emit_event, cancel_event)
             except BackendError as exc:
                 # Cancellation is user-driven; do not treat it as an attempt failure.
                 if exc.code == 2201:
@@ -324,6 +333,55 @@ class TranscriptionService:
             language_probability=float(language_probability)
             if isinstance(language_probability, (float, int))
             else None,
+        )
+
+    def _apply_translation(
+        self,
+        result: TranscriptionResult,
+        request: TranscriptionRequest,
+        emit_event: ProgressEmitter,
+        cancel_event: threading.Event | None,
+    ) -> TranscriptionResult:
+        """If translation was requested, translate segments and return an updated result."""
+        target_language = (request.target_language or "").strip().lower()
+        if not target_language or target_language == "none" or self._translation_service is None:
+            return result
+
+        source_lang = (result.detected_language or request.language or "en").strip().lower()
+        if source_lang in {"", "auto"}:
+            source_lang = "en"
+
+        if source_lang == target_language:
+            return result
+
+        # For auto-detected source the user explicitly requested translation,
+        # so download the language pack automatically.  For a known source the
+        # caller already set allow_translation_model_download based on the user
+        # having chosen a target language in the UI.
+        allow_dl = request.allow_translation_model_download
+        self._translation_service.ensure_package(
+            from_code=source_lang,
+            to_code=target_language,
+            allow_download=allow_dl,
+            emit_event=emit_event,
+        )
+
+        translated_segments = self._translation_service.translate_segments(
+            segments=result.segments,
+            from_code=source_lang,
+            to_code=target_language,
+            emit_event=emit_event,
+            cancel_event=cancel_event,
+        )
+
+        return TranscriptionResult(
+            text="\n".join(s.text for s in translated_segments if s.text.strip()),
+            segments=translated_segments,
+            effective_device=result.effective_device,
+            effective_compute_type=result.effective_compute_type,
+            attempts=result.attempts,
+            detected_language=result.detected_language,
+            language_probability=result.language_probability,
         )
 
     def _validate_request(self, request: TranscriptionRequest) -> None:

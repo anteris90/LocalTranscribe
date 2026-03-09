@@ -25,19 +25,27 @@ export async function startTranscription(input: {
   model: ModelOption;
   device: DeviceOption;
   language: string;
+  targetLanguage?: string;
   allowModelDownload?: boolean;
   allowFfmpegDownload?: boolean;
+  allowTranslationModelDownload?: boolean;
 }): Promise<{ jobId: string; status: string }> {
+  const params: Record<string, unknown> = {
+    file_path: input.filePath,
+    model: input.model,
+    device: input.device,
+    language: input.language,
+    allow_model_download: Boolean(input.allowModelDownload),
+    allow_ffmpeg_download: Boolean(input.allowFfmpegDownload),
+    allow_translation_model_download: Boolean(input.allowTranslationModelDownload),
+  };
+  if (input.targetLanguage && input.targetLanguage.trim().length > 0) {
+    params.target_language = input.targetLanguage.trim();
+  }
+
   const response = await sendBackendRequest({
     method: "start_transcription",
-    params: {
-      file_path: input.filePath,
-      model: input.model,
-      device: input.device,
-      language: input.language,
-      allow_model_download: Boolean(input.allowModelDownload),
-      allow_ffmpeg_download: Boolean(input.allowFfmpegDownload),
-    },
+    params,
   });
 
   const jobId = response.job_id;
@@ -52,6 +60,10 @@ export async function startTranscription(input: {
 
 export async function getJobStatus(): Promise<Record<string, unknown>> {
   return await sendBackendRequest({ method: "get_job_status", params: {} });
+}
+
+export async function getInstalledStatus(): Promise<Record<string, unknown>> {
+  return await sendBackendRequest({ method: "get_installed_status", params: {} });
 }
 
 export async function checkResourceUpdates(model: ModelOption): Promise<Record<string, unknown>> {

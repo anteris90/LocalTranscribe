@@ -12,6 +12,8 @@ class TranscriptionRequest:
     requested_device: str
     allow_model_download: bool = False
     allow_ffmpeg_download: bool = False
+    target_language: str | None = None
+    allow_translation_model_download: bool = False
 
 
 @dataclass(frozen=True, slots=True)

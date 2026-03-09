@@ -81,6 +81,7 @@ export type ProgressNotification = {
     | "loading"
     | "transcribing"
     | "finalizing"
+    | "translating"
     | "downloading"
     | "preparing"
     | "extracting"
@@ -88,6 +89,7 @@ export type ProgressNotification = {
     | "completed"
     | "failed";
   partial_text?: string;
+  reset_text?: boolean;
   segment?: {
     start: number;
     end: number;

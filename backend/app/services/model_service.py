@@ -242,6 +242,12 @@ class ModelService:
     def _is_model_complete(self, model_path: Path) -> bool:
         return model_path.exists() and model_path.is_dir() and len(self._missing_markers(model_path)) == 0
 
+    def is_model_installed(self, model_name: str) -> bool:
+        """Return True if the model directory exists and is complete (no network needed)."""
+        normalized = model_name.strip().lower()
+        model_path = (self._models_dir / normalized).resolve(strict=False)
+        return self._is_model_complete(model_path)
+
     def _missing_markers(self, model_path: Path) -> list[str]:
         marker_files = ["model.bin", "config.json"]
         return [name for name in marker_files if not (model_path / name).exists()]

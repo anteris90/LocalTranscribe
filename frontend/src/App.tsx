@@ -5,6 +5,7 @@ import TranscriptPanel from "./ui/TranscriptPanel";
 
 import {
   checkResourceUpdates,
+  getInstalledStatus,
   getJobStatus,
   sendBackendRequest,
   saveExportFile,
@@ -42,6 +43,7 @@ export function App() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>("medium");
   const [selectedDevice, setSelectedDevice] = useState<DeviceOption>("auto");
   const [language, setLanguage] = useState<string>("auto");
+  const [targetLanguage, setTargetLanguage] = useState<string>("");
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
 
   const [jobId, setJobId] = useState<string | null>(null);
@@ -59,6 +61,9 @@ export function App() {
   const [modelUpdateAvailable, setModelUpdateAvailable] = useState<boolean>(false);
   const [ffmpegUpdateAvailable, setFfmpegUpdateAvailable] = useState<boolean>(false);
   const [isApplyingUpdates, setIsApplyingUpdates] = useState<boolean>(false);
+
+  const [installedModels, setInstalledModels] = useState<Record<string, boolean>>({});
+  const [installedTranslationPkgs, setInstalledTranslationPkgs] = useState<string[]>([]);
 
   const [backendLifecycleStatus, setBackendLifecycleStatus] = useState<string>("unknown");
   const [healthLastPingOkAt, setHealthLastPingOkAt] = useState<number>(0);
@@ -230,6 +235,7 @@ export function App() {
   }, []);
 
   // Lightweight health check: periodically ping the backend over the existing IPC bridge.
+  const hasInitialStatusCheckRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const intervalMs = 5000;
@@ -253,6 +259,22 @@ export function App() {
         setHealthLastPingError(null);
         setHealthLastPingErrorAt(0);
         setHealthConsecutivePingFailures(0);
+        // On first successful ping, fetch installed status (local filesystem check).
+        if (!hasInitialStatusCheckRef.current) {
+          hasInitialStatusCheckRef.current = true;
+          getInstalledStatus()
+            .then((resp) => {
+              if (resp.installed_models && typeof resp.installed_models === "object") {
+                setInstalledModels(resp.installed_models as Record<string, boolean>);
+              }
+              if (Array.isArray(resp.installed_translation_packages)) {
+                setInstalledTranslationPkgs(
+                  (resp.installed_translation_packages as Array<{ to_code: string }>).map((p) => p.to_code),
+                );
+              }
+            })
+            .catch(() => {});
+        }
       } catch (error: unknown) {
         if (cancelled) {
           return;
@@ -392,6 +414,15 @@ export function App() {
         }
         if (typeof event.stage === "string") {
           setProgressStage(event.stage);
+          if (event.stage === "translating" && event.reset_text) {
+            appendLog("[translate] Translating transcript...");
+          }
+        }
+        // Clear the transcription text when the translation phase begins so
+        // translated segments can be shown in place of the original text.
+        if (event.reset_text) {
+          setTranscriptText("");
+          setTranscriptSegments([]);
         }
         if (event.partial_text && event.partial_text.trim().length > 0) {
           setTranscriptText((prev) => (prev.length === 0 ? event.partial_text ?? "" : `${prev}\n${event.partial_text ?? ""}`));
@@ -488,6 +519,19 @@ export function App() {
             setDetectedLanguage(event.result.detected_language);
           }
           setInfoMessage("Transcription completed");
+          // Refresh installed status — a translation package may have been downloaded.
+          getInstalledStatus()
+            .then((resp) => {
+              if (resp.installed_models && typeof resp.installed_models === "object") {
+                setInstalledModels(resp.installed_models as Record<string, boolean>);
+              }
+              if (Array.isArray(resp.installed_translation_packages)) {
+                setInstalledTranslationPkgs(
+                  (resp.installed_translation_packages as Array<{ to_code: string }>).map((p) => p.to_code),
+                );
+              }
+            })
+            .catch(() => {});
           return;
         }
 
@@ -754,6 +798,9 @@ export function App() {
     try {
       let allowModelDownload = false;
       let allowFfmpegDownload = false;
+      // If the user selected a target language they've already expressed intent
+      // to translate, so allow the package download automatically.
+      let allowTranslationModelDownload = targetLanguage.trim().length > 0;
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
@@ -762,8 +809,10 @@ export function App() {
             model: selectedModel,
             device: selectedDevice,
             language,
+            targetLanguage: targetLanguage.trim() || undefined,
             allowModelDownload,
             allowFfmpegDownload,
+            allowTranslationModelDownload,
           });
 
           jobIdRef.current = started.jobId;
@@ -803,6 +852,25 @@ export function App() {
               setProgressStage("downloading");
               setProgressPercent(1);
               appendLog("[download] Downloading ffmpeg...");
+              continue;
+            }
+          }
+
+          const missingTranslationPkg =
+            attemptMessage.includes("Translation package") &&
+            attemptMessage.includes("not installed");
+          if (missingTranslationPkg && !allowTranslationModelDownload) {
+            const fromCode = language === "auto" ? "detected language" : language;
+            const toCode = targetLanguage || "target language";
+            const approveTranslationDownload = window.confirm(
+              `Translation package (${fromCode} \u2192 ${toCode}) is not installed. Download it now?\n\nThis requires internet access.`
+            );
+            if (approveTranslationDownload) {
+              allowTranslationModelDownload = true;
+              setIsDownloadingResources(true);
+              setProgressStage("downloading");
+              setProgressPercent(1);
+              appendLog(`[download] Downloading translation package (${fromCode} \u2192 ${toCode})...`);
               continue;
             }
           }
@@ -937,6 +1005,19 @@ export function App() {
       setFfmpegUpdateAvailable(Boolean(ffmpeg?.update_available));
       setInfoMessage(message);
       appendLog(`[updates] ${message}`);
+      // Also refresh installed status (may have changed since last check).
+      getInstalledStatus()
+        .then((resp) => {
+          if (resp.installed_models && typeof resp.installed_models === "object") {
+            setInstalledModels(resp.installed_models as Record<string, boolean>);
+          }
+          if (Array.isArray(resp.installed_translation_packages)) {
+            setInstalledTranslationPkgs(
+              (resp.installed_translation_packages as Array<{ to_code: string }>).map((p) => p.to_code),
+            );
+          }
+        })
+        .catch(() => {});
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Update check failed";
       if (message.includes("Method not found")) {
@@ -1064,11 +1145,13 @@ export function App() {
           selectedModel={selectedModel}
           selectedDevice={selectedDevice}
           language={language}
+          targetLanguage={targetLanguage}
           isJobActive={isJobActive}
           isCancelling={isCancelling}
           onModelChange={(m) => setSelectedModel(m)}
           onDeviceChange={(d) => setSelectedDevice(d)}
           onLanguageChange={(v) => setLanguage(v)}
+          onTargetLanguageChange={(v) => setTargetLanguage(v)}
           onPickFile={onPickFile}
           onStart={onStart}
           onCancel={() => { void onCancel(); }}
@@ -1080,6 +1163,8 @@ export function App() {
           ffmpegUpdateAvailable={ffmpegUpdateAvailable}
           onExport={onExport}
           hasTranscript={hasTranscript}
+          installedModels={installedModels}
+          installedTranslationPkgs={installedTranslationPkgs}
         />
 
         <main>

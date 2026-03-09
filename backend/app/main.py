@@ -6,7 +6,7 @@ from typing import Any
 from app.api import JsonRpcProtocol
 from app.core import BackendError, DeviceService, PathService, RuntimeContext, StartupValidator
 from app.models import TranscriptionRequest
-from app.services import JobService, ModelService, PreflightService, TranscriptionService
+from app.services import JobService, ModelService, PreflightService, TranscriptionService, TranslationService
 
 
 def _build_ping_result(context: RuntimeContext) -> dict[str, Any]:
@@ -25,6 +25,8 @@ def _parse_transcription_request(params: dict[str, Any]) -> TranscriptionRequest
     requested_device = params.get("device", "auto")
     allow_model_download = params.get("allow_model_download", False)
     allow_ffmpeg_download = params.get("allow_ffmpeg_download", False)
+    target_language = params.get("target_language")
+    allow_translation_model_download = params.get("allow_translation_model_download", False)
 
     if not isinstance(file_path, str):
         raise BackendError(code=1301, message="Invalid file_path", data={"field": "file_path"})
@@ -38,6 +40,17 @@ def _parse_transcription_request(params: dict[str, Any]) -> TranscriptionRequest
         raise BackendError(code=1305, message="Invalid allow_model_download", data={"field": "allow_model_download"})
     if not isinstance(allow_ffmpeg_download, bool):
         raise BackendError(code=1306, message="Invalid allow_ffmpeg_download", data={"field": "allow_ffmpeg_download"})
+    if target_language is not None and not isinstance(target_language, str):
+        raise BackendError(code=1307, message="Invalid target_language", data={"field": "target_language"})
+    if not isinstance(allow_translation_model_download, bool):
+        raise BackendError(code=1308, message="Invalid allow_translation_model_download", data={"field": "allow_translation_model_download"})
+
+    # Normalise target_language: empty / whitespace / literal "none" → None
+    normalised_target: str | None = None
+    if isinstance(target_language, str):
+        stripped = target_language.strip().lower()
+        if stripped and stripped != "none":
+            normalised_target = stripped
 
     return TranscriptionRequest(
         file_path=file_path,
@@ -46,6 +59,8 @@ def _parse_transcription_request(params: dict[str, Any]) -> TranscriptionRequest
         requested_device=requested_device,
         allow_model_download=allow_model_download,
         allow_ffmpeg_download=allow_ffmpeg_download,
+        target_language=normalised_target,
+        allow_translation_model_download=allow_translation_model_download,
     )
 
 
@@ -71,9 +86,11 @@ def main() -> int:
             models_dir=runtime_context.paths.models_dir,
             ffmpeg_dir=runtime_context.paths.ffmpeg_dir,
         )
+        translation_service = TranslationService()
         transcription_service = TranscriptionService(
             model_service=model_service,
             capabilities=runtime_context.capabilities,
+            translation_service=translation_service,
         )
         job_service = JobService(
             runtime_context=runtime_context,
@@ -115,6 +132,9 @@ def main() -> int:
                     allow_download=transcription_request.allow_ffmpeg_download,
                     notify_download=emit_download_event,
                 )
+                # Translation package download (if needed) happens inside the job
+                # worker thread via _apply_translation, so we don't block the
+                # main JSON-RPC loop here.
                 job = job_service.start_transcription(transcription_request)
                 protocol.send_result(
                     request.request_id,
@@ -193,6 +213,21 @@ def main() -> int:
                         },
                         "model": model_update,
                         "ffmpeg": ffmpeg_update,
+                    },
+                )
+                continue
+
+            if request.method == "get_installed_status":
+                # Fast local-only check (no network) — returns which Whisper models
+                # and which translation packages are installed on this machine.
+                known_models = ["small", "medium", "large-v3"]
+                installed_models = {m: model_service.is_model_installed(m) for m in known_models}
+                installed_translation_packages = translation_service.list_installed_packages()
+                protocol.send_result(
+                    request.request_id,
+                    {
+                        "installed_models": installed_models,
+                        "installed_translation_packages": installed_translation_packages,
                     },
                 )
                 continue
